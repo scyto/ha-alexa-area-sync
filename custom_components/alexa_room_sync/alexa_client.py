@@ -200,6 +200,37 @@ async def get_raw_appliance_dicts(login) -> list[dict]:
     return out
 
 
+async def get_raw_phoenix_shape(login) -> dict:
+    """Structural skeleton of the RAW /api/phoenix response — no values, for diagnosing
+    an empty appliance walk. Shows top-level keys, whether networkDetail exists and parses,
+    and a depth-limited skeleton (dict keys / list lengths / leaf types) of the tree."""
+    def skel(o, depth=0):
+        if depth > 6:
+            return "..."
+        if isinstance(o, dict):
+            return {k: skel(v, depth + 1) for k, v in list(o.items())[:40]}
+        if isinstance(o, list):
+            return [f"list[{len(o)}]"] + ([skel(o[0], depth + 1)] if o else [])
+        return type(o).__name__
+    payload = await _request(login, "get", EP_PHOENIX)
+    nd = payload.get("networkDetail") if isinstance(payload, dict) else None
+    parsed = None
+    if isinstance(nd, str):
+        try:
+            parsed = json.loads(nd)
+        except json.JSONDecodeError:
+            parsed = "UNPARSEABLE"
+    tree = await _fetch_appliance_tree(login)
+    return {
+        "payload_type": type(payload).__name__,
+        "payload_top_keys": list(payload.keys()) if isinstance(payload, dict) else None,
+        "networkDetail_present": nd is not None,
+        "networkDetail_is_string": isinstance(nd, str),
+        "networkDetail_len": len(nd) if isinstance(nd, str) else None,
+        "tree_skeleton": skel(tree),
+    }
+
+
 async def get_appliances(login) -> list[Appliance]:
     """Fetch and flatten every smart-home appliance Alexa knows about."""
     tree = await _fetch_appliance_tree(login)

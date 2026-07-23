@@ -85,6 +85,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         raw = await ac.get_raw_appliance_dicts(login)
         sample_count = int(call.data.get("sample_count", 4))
         summary = diag_mod.summarize(raw, sample_count=sample_count)
+        if not raw:
+            summary["raw_phoenix_shape"] = await ac.get_raw_phoenix_shape(login)
         _LOGGER.info(
             "[dump_appliances] %d appliances, %d carry an embedded entity_id; "
             "entity_id locations: %s",
