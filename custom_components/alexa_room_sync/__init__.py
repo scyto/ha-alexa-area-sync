@@ -78,6 +78,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             ]
         }
 
+    async def _handle_probe_endpoints(call: ServiceCall) -> ServiceResponse:
+        """Read-only: try candidate device-list endpoints, report which returns data."""
+        login = _login_for_entry(hass, entry)
+        results = await ac.probe_read_endpoints(login)
+        for r in results:
+            _LOGGER.info("[probe] %s -> type=%s hits=%s err=%s",
+                         r["endpoint"], r["type"], r["entity_id_hits"], r["error"])
+        return {"probes": results}
+
     async def _handle_dump_appliances(call: ServiceCall) -> ServiceResponse:
         """Read-only diagnostic: return a redacted structural summary of the raw
         /api/phoenix appliance payload so entity->appliance matching can be fixed."""
@@ -162,6 +171,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         DOMAIN,
         SERVICE_DUMP_APPLIANCES,
         _handle_dump_appliances,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "probe_endpoints",
+        _handle_probe_endpoints,
         schema=vol.Schema({vol.Optional("sample_count"): cv.positive_int}),
         supports_response=SupportsResponse.OPTIONAL,
     )

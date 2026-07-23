@@ -70,3 +70,7 @@ dump_appliances:
           min: 0
           max: 20
           mode: box
+
+probe_endpoints:
+  name: Probe endpoints
+  description: Read-only diagnostic — try candidate Alexa device-list endpoints.

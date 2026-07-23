@@ -200,6 +200,55 @@ async def get_raw_appliance_dicts(login) -> list[dict]:
     return out
 
 
+async def raw_get(login, uri: str):
+    """GET a private endpoint, returning (payload, error_str). Never raises — for probing."""
+    try:
+        payload = await _request(login, "get", uri)
+        return payload, None
+    except Exception as err:  # noqa: BLE001
+        return None, str(err)[:200]
+
+
+async def probe_read_endpoints(login) -> list[dict]:
+    """Try candidate READ-ONLY endpoints for the smart-home device list and report each's
+    shape — to find one that (unlike /api/phoenix, which returns null) actually lists devices."""
+    from . import diag as _diag  # noqa: PLC0415
+
+    candidates = [
+        "/api/behaviors/entities?skillId=amzn1.ask.1p.smarthome",
+        "/api/behaviors/entities",
+        "/api/phoenix",
+        "/api/smarthome/v1/appliances",
+        "/api/phoenix/appliance",
+        "/api/smarthome/v2/appliances",
+    ]
+
+    def skel(o, depth=0):
+        if depth > 4:
+            return "..."
+        if isinstance(o, dict):
+            return {k: skel(v, depth + 1) for k, v in list(o.items())[:25]}
+        if isinstance(o, list):
+            return [f"list[{len(o)}]"] + ([skel(o[0], depth + 1)] if o else [])
+        return type(o).__name__
+
+    out = []
+    for uri in candidates:
+        payload, err = await raw_get(login, uri)
+        eids = _diag._find_entity_ids(payload) if payload is not None else []
+        out.append({
+            "endpoint": uri,
+            "error": err,
+            "type": type(payload).__name__,
+            "top_keys": list(payload.keys())[:25] if isinstance(payload, dict) else None,
+            "list_len": len(payload) if isinstance(payload, list) else None,
+            "entity_id_hits": len(eids),
+            "entity_id_example": eids[0][1] if eids else None,
+            "skeleton": skel(payload),
+        })
+    return out
+
+
 async def get_raw_phoenix_shape(login) -> dict:
     """Structural skeleton of the RAW /api/phoenix response — no values, for diagnosing
     an empty appliance walk. Shows top-level keys, whether networkDetail exists and parses,
