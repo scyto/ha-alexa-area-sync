@@ -168,10 +168,13 @@ def _extract_entity_id(appliance: dict) -> str | None:
     return looks_like_entity_id(appliance.get("entityId"))
 
 
-async def get_appliances(login) -> list[Appliance]:
-    """Fetch and flatten every smart-home appliance Alexa knows about."""
+async def _fetch_appliance_tree(login) -> Any:
+    """Fetch /api/phoenix and return the parsed appliance tree.
+
+    /api/phoenix returns {"networkDetail": "<stringified json>"} (plus other keys);
+    we un-stringify networkDetail when present.
+    """
     payload = await _request(login, "get", EP_PHOENIX)
-    # /api/phoenix returns {"networkDetail": "<stringified json>"} (plus other keys).
     network_detail = payload.get("networkDetail") if isinstance(payload, dict) else None
     tree: Any = payload
     if isinstance(network_detail, str):
@@ -179,6 +182,27 @@ async def get_appliances(login) -> list[Appliance]:
             tree = json.loads(network_detail)
         except json.JSONDecodeError:
             tree = payload
+    return tree
+
+
+async def get_raw_appliance_dicts(login) -> list[dict]:
+    """Return every raw appliance record dict (unflattened) for diagnostics."""
+    tree = await _fetch_appliance_tree(login)
+    out: list[dict] = []
+    seen_ids: set[str] = set()
+    for rec in _walk_appliance_dicts(tree):
+        aid = rec.get("applianceId")
+        if aid and aid in seen_ids:
+            continue
+        if aid:
+            seen_ids.add(aid)
+        out.append(rec)
+    return out
+
+
+async def get_appliances(login) -> list[Appliance]:
+    """Fetch and flatten every smart-home appliance Alexa knows about."""
+    tree = await _fetch_appliance_tree(login)
 
     seen: dict[str, Appliance] = {}
     for rec in _walk_appliance_dicts(tree):

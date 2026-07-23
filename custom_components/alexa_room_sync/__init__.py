@@ -20,6 +20,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 
 from . import alexa_client as ac
+from . import diag as diag_mod
 from . import sync as sync_mod
 from .const import (
     ATTR_AREA_ID,
@@ -28,6 +29,7 @@ from .const import (
     CONF_EMAIL,
     DEFAULT_DRY_RUN,
     DOMAIN,
+    SERVICE_DUMP_APPLIANCES,
     SERVICE_LIST_GROUPS,
     SERVICE_PREVIEW,
     SERVICE_SYNC,
@@ -75,6 +77,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 for g in groups
             ]
         }
+
+    async def _handle_dump_appliances(call: ServiceCall) -> ServiceResponse:
+        """Read-only diagnostic: return a redacted structural summary of the raw
+        /api/phoenix appliance payload so entity->appliance matching can be fixed."""
+        login = _login_for_entry(hass, entry)
+        raw = await ac.get_raw_appliance_dicts(login)
+        sample_count = int(call.data.get("sample_count", 4))
+        summary = diag_mod.summarize(raw, sample_count=sample_count)
+        _LOGGER.info(
+            "[dump_appliances] %d appliances, %d carry an embedded entity_id; "
+            "entity_id locations: %s",
+            summary["appliance_count"],
+            summary["appliances_with_embedded_entity_id"],
+            [loc["json_path"] for loc in summary["entity_id_locations"]],
+        )
+        return summary
 
     async def _run_sync(call: ServiceCall, area_id: str | None) -> ServiceResponse:
         login = _login_for_entry(hass, entry)
@@ -138,6 +156,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         schema=vol.Schema({vol.Optional("apply"): cv.boolean}),
         supports_response=SupportsResponse.OPTIONAL,
     )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_DUMP_APPLIANCES,
+        _handle_dump_appliances,
+        schema=vol.Schema({vol.Optional("sample_count"): cv.positive_int}),
+        supports_response=SupportsResponse.OPTIONAL,
+    )
     return True
 
 
@@ -167,7 +192,13 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    for service in (SERVICE_PREVIEW, SERVICE_SYNC_AREA, SERVICE_SYNC, SERVICE_LIST_GROUPS):
+    for service in (
+        SERVICE_PREVIEW,
+        SERVICE_SYNC_AREA,
+        SERVICE_SYNC,
+        SERVICE_LIST_GROUPS,
+        SERVICE_DUMP_APPLIANCES,
+    ):
         if hass.services.has_service(DOMAIN, service):
             hass.services.async_remove(DOMAIN, service)
     hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)

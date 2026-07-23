@@ -52,3 +52,21 @@ sync:
       default: false
       selector:
         boolean:
+
+dump_appliances:
+  name: Dump Alexa appliances (read-only diagnostic)
+  description: >-
+    Read-only. Returns a redacted structural summary of the raw /api/phoenix appliance
+    payload (key frequencies, where an HA entity_id appears, a few redacted samples) to
+    debug entity->appliance matching. Never writes to Alexa.
+  fields:
+    sample_count:
+      name: Sample count
+      description: How many full (redacted) appliance records to include.
+      required: false
+      default: 4
+      selector:
+        number:
+          min: 0
+          max: 20
+          mode: box
