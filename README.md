@@ -1,0 +1,108 @@
+# Alexa Room Sync
+
+Mirror your **Home Assistant areas** into **Alexa rooms/groups** — one Alexa room per HA area,
+with every Alexa-exposed HA device dropped into the room matching its HA area. So "Alexa, turn
+off the kitchen lights" lines up with how HA is organised.
+
+It does this through the **unofficial Alexa API** — the same private endpoints the
+[Alexa Media Player](https://github.com/alandtse/alexa_media_player) integration already speaks.
+**No official Alexa Smart Home skill, no Nabu Casa group magic** (Nabu Casa exposes devices but
+cannot create Alexa rooms). The gap this fills — `POST /api/phoenix/group` — isn't wrapped by any
+existing library.
+
+> ⚠️ **This uses an undocumented Amazon API.** Amazon can change it without notice. Treat it as a
+> convenience tool, keep the default dry-run on until you've reviewed a preview, and test one room
+> first.
+
+## How it works
+
+- **Auth is borrowed, never handled here.** The integration reuses the authenticated
+  `AlexaLogin` object from Alexa Media Player (`hass.data["alexa_media"]["accounts"][email]["login_obj"]`)
+  and drives `alexapy`'s request primitive. No password, cookies, or 2FA dance live in this code.
+- It reads which entities you've **exposed to Alexa** (HA Cloud) and each entity's **HA area**
+  (entity area, else its device's area).
+- It fetches your **Alexa smart-home appliances** (`GET /api/phoenix`) and matches each exposed HA
+  entity to its Alexa `applianceId` — by embedded HA entity_id first, then by exact friendly name.
+- It groups the matched appliance IDs per area and creates one Alexa room per area
+  (`POST /api/phoenix/group`, body `{"applianceIds":[...],"name":"Room"}`).
+
+### Endpoints used
+
+| Purpose | Call |
+|---|---|
+| List Alexa appliances | `GET /api/phoenix` |
+| List existing rooms | `GET /api/phoenix/group` |
+| Create a room | `POST /api/phoenix/group` |
+| Delete a room (manual undo) | `DELETE /api/phoenix/group/{id}` |
+
+## Requirements
+
+- Home Assistant 2024.8+.
+- **Alexa Media Player** installed and logged in (this is a hard prerequisite — it provides both
+  the `alexapy` library and the authenticated session).
+- Your HA devices already exposed to Amazon Alexa (via HA Cloud / Nabu Casa) and appearing in the
+  Alexa app.
+
+## Install (HACS custom repository)
+
+1. HACS → ⋮ → **Custom repositories** → add `https://github.com/neilellis/ha-alexa-room-sync`,
+   category **Integration**.
+2. Install **Alexa Room Sync**, restart HA.
+3. **Settings → Devices & Services → Add Integration → Alexa Room Sync**, pick your Alexa account.
+
+## Use it — safe order
+
+Everything is **dry-run by default**. Nothing is written to Alexa until you explicitly opt in.
+
+1. **Preview (read-only).** Developer Tools → Actions → `alexa_room_sync.preview` → *Run*. Read the
+   log (and the returned response): it lists every proposed room, which devices matched to an Alexa
+   appliance (`✓`), and which didn't (`✗`). Fix any unmatched devices (usually a name mismatch or a
+   device not yet exposed to Alexa).
+2. **Enable writes.** Integration → **Configure** → turn **Dry-run OFF** and tick
+   **"I understand 'apply' will write to my Alexa account"**.
+3. **Test ONE room.** `alexa_room_sync.sync_area` with `area_id: <your area>` and `apply: true`.
+   Check the Alexa app: the room should appear with the right devices. If it's wrong, delete it in
+   the Alexa app (or via `DELETE /api/phoenix/group/{id}`) — creation is fully reversible.
+4. **Do the rest.** `alexa_room_sync.sync` with `apply: true`.
+
+Existing Alexa groups whose **name matches** a room are **skipped** — never duplicated, edited, or
+deleted. This integration only ever *creates* rooms; removing them is a manual Alexa-app action.
+
+## Services
+
+| Service | Writes? | Notes |
+|---|---|---|
+| `alexa_room_sync.preview` | No | Read-only plan + match diagnostics. Optional `area_id`. |
+| `alexa_room_sync.list_groups` | No | List existing Alexa rooms. |
+| `alexa_room_sync.sync_area` | Only with `apply:true` + options confirm | One area — the single-room test. |
+| `alexa_room_sync.sync` | Only with `apply:true` + options confirm | All areas. |
+
+## Options
+
+- **Dry-run** (default on) — hard stop on all writes.
+- **Write confirmation** — must be on before `apply:true` does anything.
+- **Room name prefix** — e.g. `HA ` to keep synced rooms visually distinct.
+- **Include climate** — include Tado/climate entities in rooms (default on).
+- **Include child-lock switches** — usually noise in a room (default off).
+
+## Naming notes (multi-kitchen households)
+
+Rooms are named after the HA area. If two areas would collide by voice (e.g. two kitchens), rename
+the HA areas to something voice-unambiguous ("Ground Floor Kitchen" / "Top Floor Kitchen"), or set
+a prefix. Alexa matches rooms by what you say, so ambiguous names cause "which one?" prompts.
+
+## Caveats
+
+- HA switches that drive lights are **switches** to Alexa, so Alexa's per-room "turn off the lights"
+  may skip them. Expose them as `light` in HA if you want them caught by "lights".
+- Devices with no HA area can't be placed — assign the area in HA first.
+- The `/api/phoenix` payload shape is Amazon's and undocumented; the parser walks it defensively.
+  If a future Amazon change breaks matching, `preview` will show it as unmatched before any write.
+
+## Credits & licence
+
+MIT. Relies on [alexa_media_player](https://github.com/alandtse/alexa_media_player) /
+[alexapy](https://gitlab.com/keatontaylor/alexapy) (Apache-2.0) for authentication. Endpoint shapes
+are the public knowledge documented by
+[alexa-remote](https://github.com/Apollon77/alexa-remote) (MIT) and community reverse-engineering.
+Not affiliated with or endorsed by Amazon.

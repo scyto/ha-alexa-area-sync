@@ -1,0 +1,32 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Alexa Room Sync",
+        "description": "Pick the Alexa Media Player account whose Alexa rooms should mirror your Home Assistant areas.",
+        "data": {
+          "email": "Alexa account"
+        }
+      }
+    },
+    "abort": {
+      "no_alexa_media": "No Alexa Media Player account is configured. Install and log in to Alexa Media Player first — this integration reuses its session.",
+      "already_configured": "This Alexa account is already set up."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Alexa Room Sync options",
+        "description": "By default nothing is written to Alexa. To let the sync create rooms, turn OFF dry-run and turn ON the write confirmation.",
+        "data": {
+          "dry_run": "Dry-run (never write to Alexa)",
+          "confirmed_not_dry_run": "I understand 'apply' will write to my Alexa account",
+          "room_prefix": "Room name prefix (optional)",
+          "include_climate": "Include Tado/climate entities in rooms",
+          "include_child_locks": "Include child-lock switches in rooms"
+        }
+      }
+    }
+  }
+}

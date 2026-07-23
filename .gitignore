@@ -1,0 +1,11 @@
+# Never commit secrets/sessions
+.env
+*.env
+.storage/
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+.DS_Store
+*.cookie
+*.pickle
