@@ -182,6 +182,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         """Read-only: which Alexa list endpoints still answer for this account?"""
         login = _login_for_entry(hass, entry)
         results = await ac.probe_lists(login)
+        if call.data.get("raw"):
+            results = await ac.probe_lists_raw(login)
         for r in results:
             _LOGGER.info(
                 "[probe_lists] %s -> rows=%s names=%s err=%s",
@@ -193,6 +195,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         DOMAIN,
         SERVICE_PROBE_LISTS,
         _handle_probe_lists,
+        schema=vol.Schema({vol.Optional("raw"): cv.boolean}),
         supports_response=SupportsResponse.OPTIONAL,
     )
     hass.services.async_register(

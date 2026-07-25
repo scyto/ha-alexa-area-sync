@@ -470,6 +470,58 @@ async def delete_list_item(login, list_id: str, item: AlexaListItem) -> Any:
     )
 
 
+async def raw_probe(login, uri: str) -> dict:
+    """Lowest-level GET: report HTTP status, content type and a body prefix.
+
+    `raw_get` goes through `_request`, which turns a non-2xx into an exception and a
+    non-JSON body into `{}` — both of which hide WHY an endpoint is failing. When an
+    endpoint answers `{}` you need to know whether that is really an empty JSON object or
+    an HTML sign-in page, and only the raw response says.
+    """
+    from alexapy import AlexaAPI  # noqa: PLC0415
+
+    out: dict[str, Any] = {"endpoint": uri}
+    try:
+        resp = await AlexaAPI._static_request("get", login, uri)  # noqa: SLF001
+    except Exception as err:  # noqa: BLE001
+        out["exception"] = str(err)[:200]
+        return out
+    if resp is None:
+        out["response"] = None  # alexapy itself swallowed it (redirect / auth failure)
+        return out
+    out["status"] = getattr(resp, "status", None)
+    try:
+        out["content_type"] = resp.headers.get("Content-Type")
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        text = await resp.text()
+        out["length"] = len(text)
+        stripped = text.lstrip()[:15].lower()
+        out["looks_html"] = stripped.startswith(("<!doctype", "<html"))
+        # returned to the caller only, never logged: this can contain list contents
+        out["body_prefix"] = text[:220]
+    except Exception as err:  # noqa: BLE001
+        out["text_error"] = str(err)[:120]
+    return out
+
+
+async def probe_lists_raw(login) -> list[dict]:
+    """Try every list endpoint shape anyone has used, with full HTTP detail."""
+    candidates = [
+        "/api/namedLists",
+        "/api/namedLists?_=1700000000000",
+        "/api/v2/namedLists",
+        "/api/v2/namedLists?listIds=",
+        "/api/v2/namedLists/list",
+        "/api/lists",
+        "/api/v1/lists",
+        "/api/todos?type=SHOPPING_ITEM&size=100",
+        "/api/cardsForDevice?deviceType=ALL",
+    ]
+    return [await raw_probe(login, uri) for uri in candidates]
+
+
 async def probe_lists(login) -> list[dict]:
     """Read-only: try the candidate list endpoints and report what still answers.
 
