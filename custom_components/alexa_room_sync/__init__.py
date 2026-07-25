@@ -15,6 +15,7 @@ import logging
 
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
@@ -32,11 +33,16 @@ from .const import (
     SERVICE_DUMP_APPLIANCES,
     SERVICE_LIST_GROUPS,
     SERVICE_PREVIEW,
+    SERVICE_PROBE_LISTS,
     SERVICE_SYNC,
     SERVICE_SYNC_AREA,
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+# Alexa's named lists become HA to-do entities (see todo.py). Kept in this integration
+# rather than a second one because the authenticated session is already here.
+PLATFORMS = [Platform.TODO]
 
 
 def _login_for_entry(hass: HomeAssistant, entry: ConfigEntry):
@@ -172,6 +178,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         SERVICE_DUMP_APPLIANCES,
         _handle_dump_appliances,
     )
+    async def _handle_probe_lists(call: ServiceCall) -> ServiceResponse:
+        """Read-only: which Alexa list endpoints still answer for this account?"""
+        login = _login_for_entry(hass, entry)
+        results = await ac.probe_lists(login)
+        for r in results:
+            _LOGGER.info(
+                "[probe_lists] %s -> rows=%s names=%s err=%s",
+                r["endpoint"], r.get("row_count"), r.get("list_names"), r.get("error"),
+            )
+        return {"probes": results}
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_PROBE_LISTS,
+        _handle_probe_lists,
+        supports_response=SupportsResponse.OPTIONAL,
+    )
     hass.services.async_register(
         DOMAIN,
         "probe_endpoints",
@@ -179,6 +202,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         schema=vol.Schema({vol.Optional("sample_count"): cv.positive_int}),
         supports_response=SupportsResponse.OPTIONAL,
     )
+
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
 
@@ -208,12 +233,14 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     for service in (
         SERVICE_PREVIEW,
         SERVICE_SYNC_AREA,
         SERVICE_SYNC,
         SERVICE_LIST_GROUPS,
         SERVICE_DUMP_APPLIANCES,
+        SERVICE_PROBE_LISTS,
     ):
         if hass.services.has_service(DOMAIN, service):
             hass.services.async_remove(DOMAIN, service)

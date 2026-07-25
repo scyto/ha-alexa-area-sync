@@ -74,3 +74,10 @@ dump_appliances:
 probe_endpoints:
   name: Probe endpoints
   description: Read-only diagnostic — try candidate Alexa device-list endpoints.
+
+probe_lists:
+  name: Probe Alexa lists (read-only diagnostic)
+  description: >-
+    Read-only. Tries the candidate Alexa list endpoints (/api/namedLists and friends) and
+    reports which still answer, how many rows they return and the list names — never the
+    contents of a list. Use this when the Alexa to-do entities are missing or empty.
