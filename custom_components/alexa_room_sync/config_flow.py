@@ -12,9 +12,12 @@ from homeassistant.config_entries import (
     OptionsFlow,
 )
 from homeassistant.core import callback
+from homeassistant.data_entry_flow import section
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.selector import AreaSelector, AreaSelectorConfig
 
 from . import alexa_client as ac
+from . import runner
 from .const import (
     CONF_AREA_NAME_OVERRIDES,
     CONF_CONFIRMED,
@@ -65,6 +68,9 @@ class AlexaRoomSyncConfigFlow(ConfigFlow, domain=DOMAIN):
         return AlexaRoomSyncOptionsFlow(config_entry)
 
 
+SKIP_SECTION = "skip"
+
+
 class AlexaRoomSyncOptionsFlow(OptionsFlow):
     """Options: dry-run, naming, and the write-confirmation gate."""
 
@@ -74,7 +80,40 @@ class AlexaRoomSyncOptionsFlow(OptionsFlow):
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
+        return self.async_show_menu(
+            step_id="init", menu_options=["settings", "remove_rooms"]
+        )
+
+    async def async_step_remove_rooms(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Delete the rooms this integration made in Alexa (keeps rooms with Echos)."""
         if user_input is not None:
+            if not user_input.get("confirm"):
+                return self.async_abort(reason="remove_cancelled")
+            try:
+                results = await runner.remove_managed_rooms(self.hass, self._entry)
+            except HomeAssistantError as err:
+                return self.async_abort(
+                    reason="remove_failed", description_placeholders={"error": str(err)}
+                )
+            summary = "\n".join(f"- {name}: {res}" for name, res in results.items())
+            return self.async_abort(
+                reason="rooms_removed",
+                description_placeholders={"summary": summary or "No managed rooms."},
+            )
+        return self.async_show_form(
+            step_id="remove_rooms",
+            data_schema=vol.Schema({vol.Required("confirm", default=False): bool}),
+        )
+
+    async def async_step_settings(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        if user_input is not None:
+            # The area picker sits in its own titled section; store it flat as before.
+            skip = user_input.pop(SKIP_SECTION, {}) or {}
+            user_input[CONF_EXCLUDED_AREAS] = skip.get(CONF_EXCLUDED_AREAS, [])
             return self.async_create_entry(title="", data=user_input)
 
         opts = self._entry.options
@@ -102,10 +141,17 @@ class AlexaRoomSyncOptionsFlow(OptionsFlow):
                         CONF_INCLUDE_CHILD_LOCKS, DEFAULT_INCLUDE_CHILD_LOCKS
                     ),
                 ): bool,
-                vol.Optional(
-                    CONF_EXCLUDED_AREAS,
-                    default=opts.get(CONF_EXCLUDED_AREAS, []),
-                ): AreaSelector(AreaSelectorConfig(multiple=True)),
+                vol.Required(SKIP_SECTION): section(
+                    vol.Schema(
+                        {
+                            vol.Optional(
+                                CONF_EXCLUDED_AREAS,
+                                default=opts.get(CONF_EXCLUDED_AREAS, []),
+                            ): AreaSelector(AreaSelectorConfig(multiple=True)),
+                        }
+                    ),
+                    {"collapsed": False},
+                ),
             }
         )
-        return self.async_show_form(step_id="init", data_schema=schema)
+        return self.async_show_form(step_id="settings", data_schema=schema)
