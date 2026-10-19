@@ -1,20 +1,20 @@
 # Alexa Room Sync
 
-Keep your **Alexa rooms** in step with your **Home Assistant areas**. There is one Alexa room per
+Keep your **Alexa groups** in step with your **Home Assistant areas**. There is one Alexa group per
 HA area, holding every Alexa-exposed HA device in that area, so "Alexa, turn off the kitchen
-lights" matches how HA is organised. Rooms are created, updated when an area's devices change or
+lights" matches how HA is organised. Groups are created, updated when an area's devices change or
 the area is renamed, and removed when you skip or delete the area.
 
 > **This is a fork** of [neilellis/ha-alexa-room-sync](https://github.com/neilellis/ha-alexa-room-sync).
 > It fixes device matching (the original's device list now comes back empty), the `sync` services,
-> and adds the full room lifecycle, buttons and an area picker. See [Changes in this fork](#changes-in-this-fork).
+> and adds the full group lifecycle, buttons and an area picker. See [Changes in this fork](#changes-in-this-fork).
 
-Nabu Casa / HA Cloud exposes your devices to Alexa but can't create Alexa rooms. This fills that
+Nabu Casa / HA Cloud exposes your devices to Alexa but can't create Alexa groups. This fills that
 gap through the **unofficial Alexa API**, using the private endpoints the Alexa app and
 [Alexa Media Player](https://github.com/alandtse/alexa_media_player) use.
 
 > ⚠️ **This uses an undocumented Amazon API.** Amazon can change it without notice. Keep dry-run on
-> until you've looked at a preview, and test one room first.
+> until you've looked at a preview, and test one area first.
 
 ## Requirements
 
@@ -37,66 +37,73 @@ gap through the **unofficial Alexa API**, using the private endpoints the Alexa 
 
 Everything is read-only until you turn writes on.
 
-1. On the integration's device page, press **Preview room sync**. The plan arrives in
+1. On the integration's device page, press **Whole house – Preview**. The plan arrives in
    **Notifications** (the bell in the sidebar) and is summarised in **Last result**.
 2. To allow writes, go to **Configure > Settings**, turn **Dry-run** off and tick **I understand
    'apply' will write to my Alexa account**.
-3. Try one room first: pick it in **Area to sync** and press **Sync selected area**.
-4. Then press **Sync rooms now** to do the rest. Rooms can take a minute or two to show up in the
+3. Try one area first: pick it in **One area** and press **One area – Sync**.
+4. Then press **Whole house – Sync** to do the rest. Groups can take a minute or two to show up in the
    Alexa app; pull to refresh or reopen the app.
 
-Afterwards, add each Echo to its room in the Alexa app, so "turn on the lights" works without
-saying the room name. The sync keeps Echos you add.
+Afterwards, add each Echo to its group in the Alexa app, so "turn on the lights" works without
+saying the area name. The sync keeps Echos you add.
 
 ### Device page
 
 | Control | What it does |
 |---|---|
-| **Preview room sync** | Shows what a full sync would change. Never writes. |
-| **Sync rooms now** | Full sync. Writes only when dry-run is off and writes are confirmed; otherwise it previews. |
-| **Area to sync** | Picks the area for the two buttons below. Lists only areas that get a room (something exposed to Alexa, not skipped). Follows renames. |
-| **Preview selected area** | Shows what syncing that one area would change. |
-| **Sync selected area** | Syncs only that area's room (same write rules). |
+| **One area** | Picks an HA area. Lists only areas that get an Alexa group (something exposed to Alexa, not skipped). Follows renames. |
+| **One area – Preview** | Shows what syncing that area would change. Never writes. |
+| **One area – Sync** | Syncs only that area's Alexa group. |
+| **Whole house – Preview** | Shows what syncing every area would change. Never writes. |
+| **Whole house – Sync** | Syncs every area. |
 | **Last result** | One-line summary of the last run; the details are in Notifications. |
+
+Both Sync buttons write only when dry-run is off and writes are confirmed; otherwise they preview.
+HA lists the controls by name, which keeps the *One area* controls together, followed by
+*Whole house*.
+
+**Wording:** an **area** is Home Assistant's; an **Alexa group** is what this creates for it in Alexa.
 
 ### What a sync changes
 
-The integration remembers which Alexa rooms it created, and which devices it put in each, keyed by
+The integration remembers which Alexa groups it created or adopted, and which devices it put in each, keyed by
 HA area. A full sync then:
 
-- **creates** a room for an area that doesn't have one;
-- **updates** a managed room when the area's devices change or the area is renamed;
-- **deletes** a managed room when its area is skipped, deleted, or has no exposed devices left.
-  If the room also holds something you added yourself, such as an Echo, the HA devices are taken
-  out, your additions stay, and the room is released instead of deleted.
+- **creates** a group for an area that doesn't have one;
+- **updates** a managed group when the area's devices change or the area is renamed;
+- **deletes** a managed group when its area is skipped, deleted, or has no exposed devices left.
+  If the group also holds something you added yourself, such as an Echo, the HA devices are taken
+  out, your additions stay, and the group is released instead of deleted.
 
-A single-area sync never touches other rooms. Groups the integration didn't create are left alone,
-with one exception: an Alexa group with exactly the room's name, in an area nothing manages yet, is
+A single-area sync never touches other groups. Groups the integration didn't create are left alone,
+with one exception: an Alexa group with exactly the area's name, in an area nothing manages yet, is
 adopted. Only Home Assistant devices are matched; Echos and other devices are never added.
 
-As safety checks, a sync refuses to run if Alexa returns no devices, or no groups while rooms are
+As safety checks, a sync refuses to run if Alexa returns no devices, or no groups while groups are
 managed. Without that, a glitch on Amazon's side could look like "everything is gone".
 
 ### Removing it
 
-Removing the integration **doesn't change Alexa**. Your rooms keep working, and a reinstall picks
-them up again by name. Only the integration's saved record of its rooms is deleted.
+Removing the integration **doesn't change Alexa**. Your groups keep working, and a reinstall picks
+them up again by name. Only the integration's saved record of its groups is deleted.
 
-To take the rooms down too, first use **Configure > Remove managed rooms from Alexa**, which asks
-you to confirm. It removes the rooms it manages, which are the ones it created **plus any it
+To take the groups down too, first use **Configure > Remove the Alexa groups it manages**, which asks
+you to confirm. It removes the groups it manages, which are the ones it created **plus any it
 adopted** (an existing Alexa group with exactly an area's name). It keeps any device it didn't put
-there. So an adopted room you made by hand is deleted too if it only held HA devices. Rename such
-a room in Alexa before a sync if you want it left alone.
+there. So an adopted group you made by hand is deleted too if it only held HA devices. Rename such
+a group in Alexa before a sync if you want it left alone.
 
 ## Options (Configure > Settings)
 
 - **Dry-run** (on by default): blocks all writes.
 - **I understand 'apply' will write to my Alexa account**: must be ticked for any write.
-- **Room name prefix**: for example `HA `, to tell synced rooms apart.
-- **Include climate entities** (on by default): thermostats go in their room.
+- **Alexa group name prefix**: for example `HA `, to tell synced groups apart.
+- **Include climate entities** (on by default): thermostats go in their area's group.
 - **Include child-lock switches** (off by default).
-- **Rooms to skip**: areas a full sync never gives a room. If a skipped area already has a managed
-  room, the next full sync removes it.
+- **Areas to skip**: areas that never get an Alexa group from a whole-house sync and don't appear
+  in *One area*. If a skipped area already has an Alexa group from this integration, the next
+  whole-house sync removes it. The `sync_area` action can still target a skipped area directly.
 
 ## Actions (services)
 
@@ -119,22 +126,22 @@ For scripts and automations. With more than one Alexa account set up, pass `conf
   (`POST /nexus/v1/graphql`), falling back to `GET /api/phoenix`. It matches each exposed HA entity
   by the entity_id that HA Cloud embeds in the Alexa device id (`…_light#kitchen_cans`). Otherwise
   it matches by name, where the first alias is what HA sends Alexa as the name.
-- **Rooms:** `GET /api/phoenix/group` to list, `POST` to create, `PUT /api/phoenix/group/{id}` to
+- **Groups:** `GET /api/phoenix/group` to list, `POST` to create, `PUT /api/phoenix/group/{id}` to
   update (it sends Amazon's own group document back with the name and members changed), and
   `DELETE` to remove.
-- **Memory:** the managed rooms and their members are kept in HA storage
+- **Memory:** the managed groups and their members are kept in HA storage
   (`.storage/alexa_room_sync.<entry>.rooms`).
 
 ## Naming tips
 
-Rooms take the HA area's name. If two areas sound alike ("Kitchen" and "Kitchenette"), rename one
+Groups take the HA area's name. If two areas sound alike ("Kitchen" and "Kitchenette"), rename one
 or use a prefix, otherwise Alexa will ask "which one?". Device names come from HA too: since HA
-2026.8 Alexa gets an entity's **first alias**, so put the room-qualified name ("kitchen cans")
+2026.8 Alexa gets an entity's **first alias**, so put the area-qualified name ("kitchen cans")
 first.
 
 ## Caveats
 
-- Switches that drive lights are **switches** to Alexa, so "turn off the lights" in a room may skip
+- Switches that drive lights are **switches** to Alexa, so "turn off the lights" in a group may skip
   them. Use HA's *Show as light* if you want them included.
 - Devices with no HA area can't be placed. Give them an area first.
 - Alexa lists are also offered as HA to-do entities when Amazon still serves them. On many accounts
@@ -157,9 +164,10 @@ first.
 - **v0.8.0:** *Sync one area* in Configure (moved to the device page in 0.9.0).
 - **v0.9.0:** *Area to sync* picker and per-area buttons on the device page; *Last result* and the
   picked area survive restarts.
-- **v0.9.1:** *Area to sync* lists only areas that get a room.
+- **v0.9.1:** *Area to sync* lists only areas that get an Alexa group.
 - **v0.9.2:** `dump_appliances` reports the GraphQL and `/api/phoenix` sources separately.
 - **v0.9.3:** removing the integration also removes the `probe_endpoints` action.
+- **v0.10.0:** clearer names: *One area* / *Whole house* controls, "area" for HA and "Alexa group" for what's created.
 
 ## Credits & licence
 
