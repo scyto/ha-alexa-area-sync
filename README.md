@@ -6,7 +6,7 @@ lights" matches how HA is organised. Groups are created, updated when an area's 
 the area is renamed, and removed when you skip or delete the area.
 
 > **This is a fork** of [neilellis/ha-alexa-room-sync](https://github.com/neilellis/ha-alexa-room-sync).
-> It fixes device matching (the original's device list now comes back empty), the `sync` services,
+> It fixes device matching (the original's device list came back empty), the `sync` services,
 > and adds the full group lifecycle, buttons and an area picker. See [Changes in this fork](#changes-in-this-fork).
 
 Nabu Casa / HA Cloud exposes your devices to Alexa but can't create Alexa groups. This fills that
