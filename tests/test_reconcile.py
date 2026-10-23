@@ -68,6 +68,28 @@ def test_mass_removal_is_held_even_when_confirmed():
     assert all(a.kind == s.SKIP and not a.hold for a in acts)
 
 
+def test_four_of_ten_confirmed_removals_are_held():
+    old = (NOW - timedelta(hours=1)).isoformat()
+    groups, managed, rooms = [], {}, []
+    for n in range(10):
+        groups.append(ac.AlexaGroup(f"g{n}", f"Room {n}", [LIGHT.format(n)]))
+        managed[f"a{n}"] = {"group_id": f"g{n}", "name": f"Room {n}", "pending_since": old}
+        if n >= 4:  # rooms 4-9 still have their device
+            rooms.append(room(f"a{n}", f"Room {n}", str(n)))
+    acts = s.reconcile(plan(rooms, groups), managed, now=NOW)
+    assert not any(a.kind == s.DELETE for a in acts)
+
+
+def test_single_confirmed_removal_goes_ahead_with_few_groups():
+    old = (NOW - timedelta(hours=1)).isoformat()
+    groups = [ac.AlexaGroup("g0", "Room 0", [LIGHT.format(0)]),
+              ac.AlexaGroup("g1", "Room 1", [LIGHT.format(1)])]
+    managed = {"a0": {"group_id": "g0", "name": "Room 0", "pending_since": old},
+               "a1": {"group_id": "g1", "name": "Room 1"}}
+    acts = s.reconcile(plan([room("a1", "Room 1", "1")], groups), managed, now=NOW)
+    assert kinds(acts)["Room 0"] == s.DELETE
+
+
 def test_keeps_echo_listed_by_serial():
     echo = "AAA_SonarCloudService_e1"
     by_serial = '{"dsn":"G090ABC","deviceType":"X"}'

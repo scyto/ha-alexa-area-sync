@@ -114,8 +114,8 @@ and a recreated group is a new one), so removals are deliberate:
 
 - a group is only deleted, or released, if it was already due for removal on a sync at least
   15 minutes earlier; until then Activity says it's *held*;
-- if more than three groups (or half of those it manages) would go in one run, it holds all of
-  them, because that looks like a glitch, not a decision;
+- if more than three groups would go in one run, or half of those it manages (once it manages
+  six or more), it holds all of them, because that looks like a glitch, not a decision;
 - it never takes over one of your groups by name just to delete it.
 
 As safety checks, a sync refuses to run if Alexa returns no devices, or no groups while groups are

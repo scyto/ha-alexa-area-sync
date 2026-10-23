@@ -772,7 +772,11 @@ def _guard_removals(actions: list[RoomAction], managed: dict[str, dict],
     """Hold back deletes and releases of managed groups unless they were already
     due on an earlier sync, and hold all of them when too many come at once."""
     removals = [a for a in actions if _is_removal(a) and a.area_id in managed]
-    too_many = len(removals) > max(MAX_REMOVALS_PER_RUN, len(managed) // 2)
+    # Either limit on its own is enough: more than three, or half of the managed
+    # groups (only counted once there are enough groups for "half" to mean much).
+    too_many = len(removals) > MAX_REMOVALS_PER_RUN or (
+        len(managed) >= 2 * MAX_REMOVALS_PER_RUN and 2 * len(removals) >= len(managed)
+    )
     for action in removals:
         since = managed[action.area_id].get("pending_since")
         confirmed = False
