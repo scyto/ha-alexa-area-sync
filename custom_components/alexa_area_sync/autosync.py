@@ -62,7 +62,7 @@ def async_start(hass: HomeAssistant, entry: ConfigEntry) -> CALLBACK_TYPE:
         try:
             await runner.run_sync(hass, entry, apply=True, auto=True)
         except HomeAssistantError as err:
-            _LOGGER.warning("Alexa Room Sync auto-sync didn't run: %s", err)
+            _LOGGER.warning("Alexa Area Sync auto-sync didn't run: %s", err)
 
     @callback
     def _schedule(_event: Event | None = None) -> None:

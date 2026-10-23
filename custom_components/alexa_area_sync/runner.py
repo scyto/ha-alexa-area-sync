@@ -21,7 +21,7 @@ from homeassistant.util import dt as dt_util
 
 from . import alexa_client as ac
 from . import sync as sync_mod
-from .const import CONF_EMAIL, DOMAIN
+from .const import CONF_EMAIL, DOMAIN, LEGACY_DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -117,6 +117,31 @@ def _report_failure(hass: HomeAssistant, entry: ConfigEntry, scope: str, error: 
                "groups": {}, "error": error}
     _publish(hass, entry, f"{scope} – didn't run: {error[:180]}", details)
     _log_to_activity(hass, entry, details)
+
+
+def legacy_entries(hass: HomeAssistant, email: str | None) -> list[ConfigEntry]:
+    """Entries of the pre-0.15 ``alexa_room_sync`` domain for the same account."""
+    return [
+        e for e in hass.config_entries.async_entries(LEGACY_DOMAIN)
+        if email and str(e.data.get(CONF_EMAIL, "")).lower() == email.lower()
+    ]
+
+
+async def import_legacy_rooms(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """First start after the rename: take over the Alexa groups the old
+    ``alexa_room_sync`` entry for this account managed, so nothing is recreated.
+    The old file is left alone; removing the old integration cleans it up."""
+    store = _store(hass, entry)
+    if await store.async_load() is not None:
+        return
+    for old in legacy_entries(hass, entry.data.get(CONF_EMAIL)):
+        data = await Store(hass, STORAGE_VERSION,
+                           f"{LEGACY_DOMAIN}.{old.entry_id}.rooms").async_load()
+        if data and data.get("rooms"):
+            await store.async_save({"rooms": dict(data["rooms"])})
+            _LOGGER.info("Imported %d managed Alexa group(s) from %s",
+                         len(data["rooms"]), LEGACY_DOMAIN)
+            return
 
 
 async def remove_managed_rooms(

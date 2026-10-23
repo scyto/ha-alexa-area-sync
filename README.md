@@ -1,4 +1,4 @@
-# Alexa Room Sync
+# Alexa Area Sync
 
 Keep your **Alexa groups** in step with your **Home Assistant areas**. There is one Alexa group per
 HA area, holding every Alexa-exposed HA device in that area, so "Alexa, turn off the kitchen
@@ -39,10 +39,24 @@ gap through the **unofficial Alexa API**, using the private endpoints the Alexa 
 |---|---|---|
 | 1. Get it from HACS | [![Open this repository in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=scyto&repository=ha-alexa-room-sync&category=integration) | HACS > ⋮ > **Custom repositories**, add `https://github.com/scyto/ha-alexa-room-sync` as an **Integration** |
 | 2. Download | **Download** in HACS, then restart HA | Same |
-| 3. Set it up | [![Add Alexa Room Sync to Home Assistant](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=alexa_room_sync) | **Settings > Devices & services > Add integration > Alexa Room Sync** |
+| 3. Set it up | [![Add Alexa Area Sync to Home Assistant](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=alexa_area_sync) | **Settings > Devices & services > Add integration > Alexa Area Sync** |
 
 Then pick your Alexa account. After installing or updating, reload the browser (F5) if menu or
 field labels show up blank.
+
+### Upgrading from Alexa Room Sync
+
+Versions before 0.15.0 were called Alexa Room Sync (domain `alexa_room_sync`). Home Assistant sees
+the renamed integration as a new one, so:
+
+1. If the old one has *Sync automatically* on, turn it off (Configure > Settings).
+2. Update in HACS and restart, then **Add integration > Alexa Area Sync** with the same Alexa
+   account. It copies the old integration's settings and its record of the Alexa groups it manages,
+   so your existing groups carry on; nothing is recreated.
+3. Remove the old **Alexa Room Sync** entry. That doesn't change Alexa.
+
+Its actions are now `alexa_area_sync.*`, and its button, picker and sensor entity ids change, so
+update anything of yours that used the old ones.
 
 ## Using it
 
@@ -142,12 +156,12 @@ For scripts and automations. With more than one Alexa account set up, pass `conf
 
 | Action | Writes? | Notes |
 |---|---|---|
-| `alexa_room_sync.preview` | No | Plan and match details. Optional `area_id`. |
-| `alexa_room_sync.sync` | With `apply: true` and the confirmation | Full sync. |
-| `alexa_room_sync.sync_area` | With `apply: true` and the confirmation | One area. |
-| `alexa_room_sync.list_groups` | No | Lists the groups in your Alexa account and the devices in each. |
-| `alexa_room_sync.remove_managed_rooms` | With `confirm: true` | Removes the rooms it created. |
-| `alexa_room_sync.dump_appliances`, `probe_endpoints`, `probe_lists` | No | Diagnostics. |
+| `alexa_area_sync.preview` | No | Plan and match details. Optional `area_id`. |
+| `alexa_area_sync.sync` | With `apply: true` and the confirmation | Full sync. |
+| `alexa_area_sync.sync_area` | With `apply: true` and the confirmation | One area. |
+| `alexa_area_sync.list_groups` | No | Lists the groups in your Alexa account and the devices in each. |
+| `alexa_area_sync.remove_managed_rooms` | With `confirm: true` | Removes the rooms it created. |
+| `alexa_area_sync.dump_appliances`, `probe_endpoints`, `probe_lists` | No | Diagnostics. |
 
 ## How it works
 
@@ -163,7 +177,7 @@ For scripts and automations. With more than one Alexa account set up, pass `conf
   update (it sends Amazon's own group document back with the name and members changed), and
   `DELETE` to remove.
 - **Memory:** the managed groups and their members are kept in HA storage
-  (`.storage/alexa_room_sync.<entry>.rooms`).
+  (`.storage/alexa_area_sync.<entry>.rooms`).
 
 ## Naming tips
 
@@ -211,6 +225,7 @@ first.
 - **v0.14.1:** Alexa Media Player works again as a fallback; Alexa Devices is used when it's signed in to the account.
 - **v0.14.2:** an Echo that Alexa lists in a group by serial counts as already there, so it no longer shows as added on every sync; such entries show as "<Echo> (by serial)".
 - **v0.14.3:** floor groups hold only lights and light switches by default; the "Alexa lists unavailable" message is logged once at info level instead of a warning on every start.
+- **v0.15.0:** renamed to **Alexa Area Sync** (domain `alexa_area_sync`, was `alexa_room_sync`) so it can't clash with other integrations of the old name. See [Upgrading from Alexa Room Sync](#upgrading-from-alexa-room-sync).
 
 ## Credits & licence
 

@@ -32,7 +32,7 @@ class LastResultSensor(RestoreSensor):
         self._attr_unique_id = f"{entry.entry_id}_last_result"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
-            name="Alexa Room Sync",
+            name="Alexa Area Sync",
             entry_type=DeviceEntryType.SERVICE,
         )
 

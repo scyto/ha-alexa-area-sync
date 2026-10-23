@@ -1,6 +1,6 @@
 {
-  "domain": "alexa_room_sync",
-  "name": "Alexa Room Sync",
+  "domain": "alexa_area_sync",
+  "name": "Alexa Area Sync",
   "codeowners": [
     "@neilellis"
   ],
@@ -15,5 +15,5 @@
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/scyto/ha-alexa-room-sync/issues",
   "requirements": [],
-  "version": "0.14.3"
+  "version": "0.15.0"
 }

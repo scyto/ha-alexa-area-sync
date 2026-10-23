@@ -31,7 +31,7 @@ class _RoomSyncButton(ButtonEntity):
         self._attr_translation_key = key
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
-            name="Alexa Room Sync",
+            name="Alexa Area Sync",
             entry_type=DeviceEntryType.SERVICE,
         )
 

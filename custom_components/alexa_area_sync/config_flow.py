@@ -1,4 +1,4 @@
-"""Config & options flow for Alexa Room Sync."""
+"""Config & options flow for Alexa Area Sync."""
 
 from __future__ import annotations
 
@@ -43,8 +43,8 @@ from .const import (
 )
 
 
-class AlexaRoomSyncConfigFlow(ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for Alexa Room Sync."""
+class AlexaAreaSyncConfigFlow(ConfigFlow, domain=DOMAIN):
+    """Handle a config flow for Alexa Area Sync."""
 
     VERSION = 1
 
@@ -59,10 +59,13 @@ class AlexaRoomSyncConfigFlow(ConfigFlow, domain=DOMAIN):
             email = user_input[CONF_EMAIL]
             await self.async_set_unique_id(f"{DOMAIN}:{email}")
             self._abort_if_unique_id_configured()
+            # Renamed from alexa_room_sync: start with that entry's settings if it exists.
+            legacy = runner.legacy_entries(self.hass, email)
+            options = dict(legacy[0].options) if legacy else {CONF_DRY_RUN: DEFAULT_DRY_RUN}
             return self.async_create_entry(
-                title=f"Alexa Room Sync ({email})",
+                title=f"Alexa Area Sync ({email})",
                 data={CONF_EMAIL: email},
-                options={CONF_DRY_RUN: DEFAULT_DRY_RUN},
+                options=options,
             )
 
         schema = vol.Schema(
@@ -73,13 +76,13 @@ class AlexaRoomSyncConfigFlow(ConfigFlow, domain=DOMAIN):
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
-        return AlexaRoomSyncOptionsFlow(config_entry)
+        return AlexaAreaSyncOptionsFlow(config_entry)
 
 
 SKIP_SECTION = "skip"
 
 
-class AlexaRoomSyncOptionsFlow(OptionsFlow):
+class AlexaAreaSyncOptionsFlow(OptionsFlow):
     """Options: dry-run, naming, and the write-confirmation gate."""
 
     def __init__(self, config_entry: ConfigEntry) -> None:

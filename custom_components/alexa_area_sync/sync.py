@@ -809,8 +809,8 @@ async def apply_actions(
                 results[label] = action.describe()
         except ac.AlexaClientError as err:
             results[label] = f"ERROR: {err}"
-            _LOGGER.error("Alexa Room Sync: %s '%s' failed: %s",
+            _LOGGER.error("Alexa Area Sync: %s '%s' failed: %s",
                           action.kind, action.room_name, err)
         else:
-            _LOGGER.info("Alexa Room Sync: %s: %s", label, results[label])
+            _LOGGER.info("Alexa Area Sync: %s: %s", label, results[label])
     return results
