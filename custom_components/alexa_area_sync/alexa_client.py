@@ -147,6 +147,18 @@ def get_login_obj(hass: HomeAssistant, email: str | None = None):
     return login
 
 
+def login_integration_states(hass: HomeAssistant) -> list[str]:
+    """'Alexa Devices: setup_retry' style lines for each set-up login integration, to
+    explain why no account is usable. Empty when neither is set up."""
+    out = []
+    for domain, label in ((ALEXA_DEVICES_DOMAIN, "Alexa Devices"),
+                          (ALEXA_MEDIA_DOMAIN, "Alexa Media Player")):
+        for entry in hass.config_entries.async_entries(domain):
+            state = getattr(entry.state, "value", str(entry.state))
+            out.append(f"{label} ({entry.title}): {state}")
+    return out
+
+
 def list_configured_emails(hass: HomeAssistant) -> list[str]:
     """Accounts signed in through Alexa Devices or Alexa Media Player."""
     emails = [_alexa_devices_email(e) for e in _alexa_devices_entries(hass)]

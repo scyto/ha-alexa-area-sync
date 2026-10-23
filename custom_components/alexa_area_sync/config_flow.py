@@ -41,8 +41,39 @@ from .const import (
     DEFAULT_INCLUDE_ECHOS,
     DEFAULT_INCLUDE_CLIMATE,
     DEFAULT_ROOM_PREFIX,
+    ASSISTANT_ALEXA,
     DOMAIN,
 )
+
+
+def _cloud_note(hass) -> str:
+    """A warning for the setup form if HA Cloud won't give Alexa any devices to group:
+    not logged in, Alexa turned off in it, or nothing exposed to Alexa."""
+    try:
+        from homeassistant.components.cloud.const import DATA_CLOUD  # noqa: PLC0415
+
+        cloud = hass.data.get(DATA_CLOUD)
+    except ImportError:
+        cloud = None
+    if cloud is None or not getattr(cloud, "is_logged_in", False):
+        return ("\n\n**Note:** Home Assistant Cloud isn't logged in, so Alexa won't see "
+                "your Home Assistant devices and there will be nothing to group.")
+    try:
+        from homeassistant.components.homeassistant.exposed_entities import (  # noqa: PLC0415
+            async_should_expose,
+        )
+        from homeassistant.helpers import entity_registry as er  # noqa: PLC0415
+
+        exposed = sum(
+            1 for e in er.async_get(hass).entities.values()
+            if async_should_expose(hass, ASSISTANT_ALEXA, e.entity_id)
+        )
+    except Exception:  # noqa: BLE001 - only a hint on the form
+        return ""
+    if not exposed:
+        return ("\n\n**Note:** nothing is exposed to Alexa yet (Settings > Voice "
+                "assistants > Expose), so there will be nothing to group.")
+    return ""
 
 
 class AlexaAreaSyncConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -55,12 +86,29 @@ class AlexaAreaSyncConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         emails = ac.list_configured_emails(self.hass)
         if not emails:
-            return self.async_abort(reason="no_alexa_media")
+            # Say which requirement is missing: no login integration at all, or one
+            # that's set up but not signed in (or still starting).
+            states = ac.login_integration_states(self.hass)
+            if not states:
+                return self.async_abort(reason="no_login_integration")
+            return self.async_abort(
+                reason="login_not_ready",
+                description_placeholders={"states": ", ".join(states)},
+            )
 
+        errors: dict[str, str] = {}
+        placeholders = {"error": "", "cloud_note": _cloud_note(self.hass)}
         if user_input is not None:
             email = user_input[CONF_EMAIL]
             await self.async_set_unique_id(f"{DOMAIN}:{email}")
             self._abort_if_unique_id_configured()
+            # Prove the borrowed session works before creating the entry.
+            try:
+                await ac.get_groups(ac.get_login_obj(self.hass, email))
+            except ac.AlexaClientError as err:
+                errors["base"] = "cannot_connect"
+                placeholders["error"] = str(err)[:300]
+        if user_input is not None and not errors:
             # Renamed from alexa_room_sync: start with that entry's settings if it exists.
             legacy = runner.legacy_entries(self.hass, email)
             options = dict(legacy[0].options) if legacy else {CONF_DRY_RUN: DEFAULT_DRY_RUN}
@@ -73,7 +121,10 @@ class AlexaAreaSyncConfigFlow(ConfigFlow, domain=DOMAIN):
         schema = vol.Schema(
             {vol.Required(CONF_EMAIL, default=emails[0]): vol.In(emails)}
         )
-        return self.async_show_form(step_id="user", data_schema=schema)
+        return self.async_show_form(
+            step_id="user", data_schema=schema, errors=errors,
+            description_placeholders=placeholders,
+        )
 
     @staticmethod
     @callback
