@@ -59,6 +59,14 @@ def _cloud_note(hass) -> str:
         return ("\n\n**Note:** Home Assistant Cloud isn't logged in, so Alexa won't see "
                 "your Home Assistant devices and there will be nothing to group.")
     try:
+        alexa_on = bool(cloud.client.prefs.alexa_enabled)
+    except Exception:  # noqa: BLE001 - private API; skip this hint if it moves
+        alexa_on = True
+    if not alexa_on:
+        return ("\n\n**Note:** Alexa is turned off in Home Assistant Cloud (Settings > "
+                "Home Assistant Cloud > Alexa), so Alexa won't see your Home Assistant "
+                "devices and there will be nothing to group.")
+    try:
         from homeassistant.components.homeassistant.exposed_entities import (  # noqa: PLC0415
             async_should_expose,
         )
@@ -118,8 +126,11 @@ class AlexaAreaSyncConfigFlow(ConfigFlow, domain=DOMAIN):
                 options=options,
             )
 
+        # After a failed check, keep the account the user picked selected.
+        chosen = (user_input or {}).get(CONF_EMAIL)
         schema = vol.Schema(
-            {vol.Required(CONF_EMAIL, default=emails[0]): vol.In(emails)}
+            {vol.Required(CONF_EMAIL, default=chosen if chosen in emails else emails[0]):
+                vol.In(emails)}
         )
         return self.async_show_form(
             step_id="user", data_schema=schema, errors=errors,
