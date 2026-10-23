@@ -5,6 +5,7 @@ Shared by the services and the buttons so both behave the same way.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -44,30 +45,54 @@ async def run_sync(
     *,
     only_area_id: str | None = None,
     apply: bool = False,
+    auto: bool = False,
 ) -> dict[str, Any]:
     """Plan and (if ``apply``) carry out the sync. Returns the service response.
 
-    The outcome goes to the Last result sensor and the device's Activity.
+    The outcome goes to the Last result sensor and the device's Activity. An
+    ``auto`` run (auto-sync) only reports when it changed something or failed, so
+    the hourly check doesn't fill Activity with "nothing to do".
     """
+    async with _lock(hass, entry):
+        return await _run_sync(hass, entry, only_area_id=only_area_id, apply=apply,
+                               auto=auto)
+
+
+def _lock(hass: HomeAssistant, entry: ConfigEntry) -> asyncio.Lock:
+    """One run at a time per account, so a button press and an auto-sync can't
+    both write the same groups."""
+    locks = hass.data.setdefault(DOMAIN, {}).setdefault("_locks", {})
+    return locks.setdefault(entry.entry_id, asyncio.Lock())
+
+
+async def _run_sync(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    *,
+    only_area_id: str | None,
+    apply: bool,
+    auto: bool,
+) -> dict[str, Any]:
     # Older versions posted a notification; clear any that's still lying around.
     persistent_notification.async_dismiss(hass, NOTIFICATION_ID)
-    scope = _scope(hass, only_area_id)
+    scope = "Auto-sync" if auto else _scope(hass, only_area_id)
     try:
         login = ac.get_login_obj(hass, entry.data.get(CONF_EMAIL))
         plan = await sync_mod.build_plan(
             hass, login, dict(entry.options), only_area_id=only_area_id
         )
     except ac.AlexaClientError as err:
-        details = {"scope": scope, "mode": "error", "ran_at": dt_util.utcnow().isoformat(),
-                   "groups": {}, "error": str(err)}
-        _publish(hass, entry, f"{scope} – didn't run: {str(err)[:180]}", details)
-        _log_to_activity(hass, entry, details)
+        _report_failure(hass, entry, scope, str(err))
         raise HomeAssistantError(str(err)) from err
 
     store = _store(hass, entry)
     data = await store.async_load() or {}
     managed: dict[str, dict] = dict(data.get("rooms", {}))
-    _check_groups_listed(plan.groups, managed)
+    try:
+        _check_groups_listed(plan.groups, managed)
+    except HomeAssistantError as err:
+        _report_failure(hass, entry, scope, str(err))
+        raise
     actions = sync_mod.reconcile(plan, managed, only_area_id=only_area_id)
 
     results = None
@@ -76,16 +101,36 @@ async def run_sync(
         await store.async_save({"rooms": managed})
 
     response = _response(plan, actions, results, managed, dry_run=not apply)
+    # SKIP ("no matched devices", e.g. Alexa hasn't discovered a new device yet)
+    # changes nothing either, so the hourly run stays quiet about it.
+    if auto and all(a.kind in (sync_mod.UNCHANGED, sync_mod.SKIP) for a in actions):
+        return response
     details = _details(actions, results, scope=scope, applied=apply)
     _publish(hass, entry, _short_summary(actions, applied=apply, scope=scope), details)
     _log_to_activity(hass, entry, details)
     return response
 
 
+def _report_failure(hass: HomeAssistant, entry: ConfigEntry, scope: str, error: str) -> None:
+    """Put a run that couldn't go ahead in Last result and Activity."""
+    details = {"scope": scope, "mode": "error", "ran_at": dt_util.utcnow().isoformat(),
+               "groups": {}, "error": error}
+    _publish(hass, entry, f"{scope} – didn't run: {error[:180]}", details)
+    _log_to_activity(hass, entry, details)
+
+
 async def remove_managed_rooms(
     hass: HomeAssistant, entry: ConfigEntry
 ) -> dict[str, str]:
     """Undo every room this integration manages in Alexa. Returns name -> result."""
+    # Same lock as a sync: both load, change and save the managed-rooms record.
+    async with _lock(hass, entry):
+        return await _remove_managed_rooms(hass, entry)
+
+
+async def _remove_managed_rooms(
+    hass: HomeAssistant, entry: ConfigEntry
+) -> dict[str, str]:
     store = _store(hass, entry)
     data = await store.async_load() or {}
     managed: dict[str, dict] = dict(data.get("rooms", {}))
