@@ -2,7 +2,8 @@
 
 Purpose: work out *where* (if anywhere) an appliance record carries the HA
 entity_id it was built from, so the matcher can be fixed. Everything here is GET
-only. Amazon identifiers/tokens are redacted before anything leaves the box.
+only. Amazon identifiers, tokens and Echo serial numbers are redacted before anything
+leaves the box; device names are kept, since matching by name is what this debugs.
 """
 
 from __future__ import annotations
@@ -42,6 +43,11 @@ _REDACT_KEYS = {
     "aliases",
     "applianceNetworkState",
     "connectedVia",
+    # Echo serial numbers
+    "alexaDeviceIdentifierList",
+    "deviceSerialNumber",
+    "serialNumber",
+    "dsn",
 }
 
 

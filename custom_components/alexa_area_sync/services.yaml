@@ -20,7 +20,16 @@ preview:
 
 list_groups:
   name: List existing Alexa groups
-  description: Read-only. Lists the groups that already exist in your Alexa account.
+  description: >-
+    Read-only. Lists the groups in your Alexa account and the devices in each.
+  fields:
+    config_entry_id:
+      name: Alexa account
+      description: Which account to use. Only needed if you've set up more than one.
+      required: false
+      selector:
+        config_entry:
+          integration: alexa_area_sync
 
 sync_area:
   name: Sync one area
@@ -84,6 +93,13 @@ dump_appliances:
     entity_id appears, a few redacted samples), to debug entity->appliance matching.
     Never writes to Alexa.
   fields:
+    config_entry_id:
+      name: Alexa account
+      description: Which account to use. Only needed if you've set up more than one.
+      required: false
+      selector:
+        config_entry:
+          integration: alexa_area_sync
     sample_count:
       name: Sample count
       description: How many full (redacted) appliance records to include.
@@ -97,20 +113,22 @@ dump_appliances:
 
 probe_endpoints:
   name: Probe endpoints
-  description: Read-only diagnostic — try candidate Alexa device-list endpoints.
-
-probe_lists:
-  name: Probe Alexa lists (read-only diagnostic)
-  description: >-
-    Read-only. Tries the candidate Alexa list endpoints (/api/namedLists and friends) and
-    reports which still answer, how many rows they return and the list names — never the
-    contents of a list. Use this when the Alexa to-do entities are missing or empty.
+  description: Read-only diagnostic. Tries candidate Alexa device-list endpoints.
+  fields:
+    config_entry_id:
+      name: Alexa account
+      description: Which account to use. Only needed if you've set up more than one.
+      required: false
+      selector:
+        config_entry:
+          integration: alexa_area_sync
 
 remove_managed_rooms:
   name: Remove the Alexa groups it manages (created or adopted)
   description: >-
-    Deletes the Alexa groups this integration created or adopted. A group that also holds a device you
-    added yourself (an Echo) keeps that device and is just released.
+    Deletes the Alexa groups this integration created or adopted. A group that also
+    holds a device you added yourself (an Echo) keeps that device and is just released.
+    This writes to Alexa whatever the dry-run setting: confirm must be true.
   fields:
     config_entry_id:
       name: Alexa account

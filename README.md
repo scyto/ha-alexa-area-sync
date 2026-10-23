@@ -61,7 +61,8 @@ update anything of yours that used the old ones.
 
 ## Using it
 
-Everything is read-only until you turn writes on.
+Syncs are read-only until you turn writes on. The only other action that writes is
+*Remove the Alexa groups it manages*, which asks you to confirm.
 
 1. On the integration's device page, press **Whole house – Preview**. The summary appears in
    **Last result**, and the device's **Activity** lists, by name, the devices each Alexa group
@@ -108,6 +109,15 @@ A single-area sync never touches other groups. Groups the integration didn't cre
 with one exception: an Alexa group with exactly the area's name, in an area nothing manages yet, is
 adopted. Only Home Assistant devices are matched, plus Echos if you turn that option on. Nothing else is added.
 
+Deleting a group is the one change you'd notice later (Alexa routines that use it break,
+and a recreated group is a new one), so removals are deliberate:
+
+- a group is only deleted, or released, if it was already due for removal on a sync at least
+  15 minutes earlier; until then Activity says it's *held*;
+- if more than three groups would go in one run, or half of those it manages (once it manages
+  six or more), it holds all of them, because that looks like a glitch, not a decision;
+- it never takes over one of your groups by name just to delete it.
+
 As safety checks, a sync refuses to run if Alexa returns no devices, or no groups while groups are
 managed. Without that, a glitch on Amazon's side could look like "everything is gone".
 
@@ -125,7 +135,8 @@ a group in Alexa before a sync if you want it left alone.
 
 ## Options (Configure > Settings)
 
-- **Dry-run** (on by default): blocks all writes.
+- **Dry-run** (on by default): syncs never write to Alexa. (*Remove the Alexa groups it
+  manages* is separate and has its own confirmation.)
 - **I understand 'apply' will write to my Alexa account**: must be ticked for any write.
 - **Alexa group name prefix**: for example `HA `, to tell synced groups apart.
 - **Include climate entities** (on by default): thermostats go in their area's group.
@@ -166,8 +177,8 @@ For scripts and automations. With more than one Alexa account set up, pass `conf
 | `alexa_area_sync.sync` | With `apply: true` and the confirmation | Full sync. |
 | `alexa_area_sync.sync_area` | With `apply: true` and the confirmation | One area. |
 | `alexa_area_sync.list_groups` | No | Lists the groups in your Alexa account and the devices in each. |
-| `alexa_area_sync.remove_managed_rooms` | With `confirm: true` | Removes the rooms it created. |
-| `alexa_area_sync.dump_appliances`, `probe_endpoints`, `probe_lists` | No | Diagnostics. |
+| `alexa_area_sync.remove_managed_rooms` | With `confirm: true`, whatever the dry-run setting | Removes the groups it created or adopted (keeps devices you added yourself). |
+| `alexa_area_sync.dump_appliances`, `probe_endpoints` | No | Diagnostics. `dump_appliances` redacts Amazon ids and Echo serials but keeps device names. |
 
 ## How it works
 
@@ -197,8 +208,6 @@ first.
 - Switches that drive lights are **switches** to Alexa, so "turn off the lights" in a group may skip
   them. Use HA's *Show as light* if you want them included.
 - Devices with no HA area can't be placed. Give them an area first.
-- Alexa lists are also offered as HA to-do entities when Amazon still serves them. On many accounts
-  it doesn't, and the integration then logs a warning and creates none.
 - **Alexa Media Player login:** if you use AMP and its login fails with "failed to login", restart HA and
   finish the AMP login in the **first** attempt after the restart. This works around an AMP bug
   where a retry reuses the first attempt's login proxy (see
@@ -234,6 +243,7 @@ first.
 - **v0.15.0:** renamed to **Alexa Area Sync** (domain `alexa_area_sync`, was `alexa_room_sync`) so it can't clash with other integrations of the old name. See [Upgrading from Alexa Room Sync](#upgrading-from-alexa-room-sync).
 - **v0.15.1:** no "Unable to remove unknown job listener" error when the integration is reloaded or removed with auto-sync on.
 - **v0.16.0:** lists exposed devices Alexa doesn't have, and asks HA Cloud to resend them if they stay missing.
+- **v0.17.0:** safer removals (held until confirmed on a later sync, capped per run, never on adoption); a sync stops if HA's exposure settings can't be read; the managed-groups record is saved even after an error; the Alexa lists / to-do feature is removed; diagnostics redact Echo serials; actions register once at startup; the README is exact about what writes.
 
 ## Credits & licence
 
