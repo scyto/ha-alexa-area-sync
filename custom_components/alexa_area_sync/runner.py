@@ -114,7 +114,10 @@ async def _run_sync(
     missing = heal.missing_in_alexa(plan) if not only_area_id else {}
     resent: list[str] = []
     resend_error = None
-    if apply and missing and entry.options.get(CONF_RESEND_MISSING, DEFAULT_RESEND_MISSING):
+    if apply and not only_area_id and entry.options.get(
+            CONF_RESEND_MISSING, DEFAULT_RESEND_MISSING):
+        # Track on every sync, even with nothing missing, so a device that comes
+        # back loses its old first-seen time and gets the full grace period next time.
         due = heal.due_for_resend(hass, entry, missing)
         if due:
             resend_error = await heal.resend_via_cloud(hass, entry, due)

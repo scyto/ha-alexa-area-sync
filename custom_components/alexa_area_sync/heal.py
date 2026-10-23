@@ -16,7 +16,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN, FLOOR_KEY_PREFIX
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -27,14 +27,9 @@ MIN_INTERVAL = timedelta(hours=1)
 
 
 def missing_in_alexa(plan) -> dict[str, str]:
-    """entity_id -> name for exposed, area-assigned devices Alexa doesn't list."""
-    out: dict[str, str] = {}
-    for room in plan.rooms:
-        if room.area_id.startswith(FLOOR_KEY_PREFIX):
-            continue
-        for entity_id in room.unmatched:
-            out[entity_id] = room.wanted.get(entity_id, entity_id)
-    return out
+    """entity_id -> name for exposed, area-assigned devices Alexa doesn't list,
+    before any group filter (skipped areas, domains kept out of groups)."""
+    return dict(plan.not_in_alexa)
 
 
 def _state(hass: HomeAssistant, entry: ConfigEntry) -> dict:
