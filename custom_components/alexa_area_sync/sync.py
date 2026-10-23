@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import (
@@ -109,8 +110,11 @@ def _should_expose(hass: HomeAssistant, entity_id: str) -> bool:
         )
 
         return bool(async_should_expose(hass, ASSISTANT_ALEXA, entity_id))
-    except Exception:  # noqa: BLE001 - be tolerant across HA versions
-        return False
+    except Exception as err:  # noqa: BLE001
+        # Treating this as "not exposed" would empty every group; refuse instead.
+        raise ac.AlexaClientError(
+            f"Couldn't read Home Assistant's Alexa exposure settings: {err}"
+        ) from err
 
 
 def _area_for_entity(
@@ -585,6 +589,9 @@ class RoomAction:
     renamed_from: str = ""
     adopted: bool = False
     release: bool = False  # stop managing the room after this update
+    # A removal this run held back instead of doing (see _guard_removals). The
+    # record keeps ``pending_since`` so a later sync can carry it out.
+    hold: bool = False
     members: list[str] = field(default_factory=list)  # HA members we leave in it
     note: str = ""
     # applianceId -> Alexa name, for the devices this action adds or removes
@@ -644,6 +651,7 @@ def reconcile(
     plan: SyncPlan,
     managed: dict[str, dict],
     only_area_id: str | None = None,
+    now: datetime | None = None,
 ) -> list[RoomAction]:
     """Work out create/update/delete steps. Pure: no I/O, so it can be tested offline.
 
@@ -692,7 +700,12 @@ def reconcile(
         removed = [a for a in have if a not in want]
         renamed_from = group.name if group.name != room.room_name else ""
 
-        if not want and not others:
+        if not want and adopted:
+            # Never take over a group you made just to delete it in the same run.
+            actions.append(RoomAction(SKIP, room.area_id, room.room_name,
+                                      note="no matched devices; not adopting "
+                                           f"your group '{group.name}'"))
+        elif not want and not others:
             actions.append(RoomAction(DELETE, room.area_id, room.room_name,
                                       group_id=group.group_id, adopted=adopted,
                                       removed=list(group.appliance_ids),
@@ -735,9 +748,48 @@ def reconcile(
                                           group_id=group.group_id,
                                           removed=list(group.appliance_ids),
                                           note="area skipped, removed or empty"))
+    _guard_removals(actions, managed, now or datetime.now(timezone.utc))
     for action in actions:
         action.labels = plan.names
     return actions
+
+
+# A managed group is only deleted (or released) once it has been due for removal on a
+# sync at least this long ago. A device list that briefly comes back short, or an
+# exposure setting that is briefly unreadable, then can't delete groups: deleting
+# and recreating a group gives it a new id, which breaks Alexa routines using it.
+REMOVAL_CONFIRM_AFTER = timedelta(minutes=15)
+# More removals than this in one run looks like a glitch, not a decision: hold them all.
+MAX_REMOVALS_PER_RUN = 3
+
+
+def _is_removal(action: RoomAction) -> bool:
+    return action.kind == DELETE or (action.kind == UPDATE and action.release)
+
+
+def _guard_removals(actions: list[RoomAction], managed: dict[str, dict],
+                    now: datetime) -> None:
+    """Hold back deletes and releases of managed groups unless they were already
+    due on an earlier sync, and hold all of them when too many come at once."""
+    removals = [a for a in actions if _is_removal(a) and a.area_id in managed]
+    too_many = len(removals) > max(MAX_REMOVALS_PER_RUN, len(managed) // 2)
+    for action in removals:
+        since = managed[action.area_id].get("pending_since")
+        confirmed = False
+        if since:
+            try:
+                confirmed = now - datetime.fromisoformat(since) >= REMOVAL_CONFIRM_AFTER
+            except ValueError:
+                confirmed = False
+        if confirmed and not too_many:
+            continue
+        what = "delete" if action.kind == DELETE else "release"
+        note = (f"held: {len(removals)} groups would be removed at once, which looks "
+                "like a glitch; check exposure and Alexa's device list"
+                if too_many else
+                f"would {what} ({action.note or 'area skipped, removed or empty'}); "
+                "does so on a sync 15+ minutes from now if still the case")
+        action.kind, action.hold, action.note = SKIP, not too_many, note
 
 
 def teardown(groups: list[ac.AlexaGroup], managed: dict[str, dict]) -> list[RoomAction]:
@@ -826,6 +878,10 @@ async def apply_actions(
                 managed[action.area_id] = {"group_id": action.group_id,
                                            "name": action.room_name,
                                            "members": action.members}
+                results[label] = action.describe()
+            elif action.kind == SKIP and action.hold and action.area_id in managed:
+                managed[action.area_id].setdefault(
+                    "pending_since", datetime.now(timezone.utc).isoformat())
                 results[label] = action.describe()
             else:
                 results[label] = action.describe()

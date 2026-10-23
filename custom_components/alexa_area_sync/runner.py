@@ -104,8 +104,12 @@ async def _run_sync(
 
     results = None
     if apply:
-        results = await sync_mod.apply_actions(login, plan, actions, managed)
-        await store.async_save({"rooms": managed})
+        try:
+            results = await sync_mod.apply_actions(login, plan, actions, managed)
+        finally:
+            # Save even after an unexpected error, so groups already created or
+            # deleted in Alexa stay in the record.
+            await store.async_save({"rooms": managed})
 
     response = _response(plan, actions, results, managed, dry_run=not apply)
 
@@ -201,9 +205,10 @@ async def _remove_managed_rooms(
     plan = sync_mod.SyncPlan(rooms=[], existing_group_names=[], total_exposed=0,
                              total_in_area=0, groups=groups)
     actions = sync_mod.teardown(groups, managed)
-    results = await sync_mod.apply_actions(login, plan, actions, managed)
-    await store.async_save({"rooms": managed})
-    return results
+    try:
+        return await sync_mod.apply_actions(login, plan, actions, managed)
+    finally:
+        await store.async_save({"rooms": managed})
 
 
 def _check_groups_listed(groups, managed: dict[str, dict]) -> None:
@@ -285,6 +290,9 @@ def _details(actions, results, *, scope: str, applied: bool) -> dict[str, Any]:
         groups = {a.room_name: a.describe() for a in actions}
     else:
         groups = dict(results)
+    # Keep the sensor's attributes well under the recorder's 16 KB limit: a create
+    # with dozens of devices can describe them all.
+    groups = {k: (v if len(str(v)) <= 300 else str(v)[:297] + "...") for k, v in groups.items()}
     return {
         "scope": scope,
         "mode": "sync" if applied else "preview",

@@ -36,10 +36,6 @@ from .const import (
     ALEXA_MEDIA_DOMAIN,
     EP_GRAPHQL,
     EP_GROUP,
-    EP_LIST_ITEM,
-    EP_LIST_ITEM_ID,
-    EP_LIST_ITEMS,
-    EP_LISTS,
     EP_PHOENIX,
     GQL_SMARTHOME_QUERY,
 )
@@ -170,9 +166,16 @@ async def _alexa_devices_request(
     """Same contract as ``_request``, over core Alexa Devices' HTTP wrapper."""
     from yarl import URL  # noqa: PLC0415
 
-    http = session.api._http_wrapper  # noqa: SLF001
-    state = session.api._session_state_data  # noqa: SLF001
-    url = URL.joinpath(state.alexa_website_url, uri.lstrip("/"))
+    try:
+        http = session.api._http_wrapper  # noqa: SLF001
+        base = URL(session.api._session_state_data.alexa_website_url)  # noqa: SLF001
+    except AttributeError as err:
+        raise AlexaClientError(
+            "This Alexa Devices version doesn't expose the HTTP session Alexa Area Sync "
+            f"borrows (needs Home Assistant 2025.12 or newer): {err}"
+        ) from err
+    # join, not joinpath: keeps a query string (?x=y) instead of percent-encoding it.
+    url = base.join(URL(uri if uri.startswith("/") else f"/{uri}"))
     # Amazon only answers GraphQL to the Alexa app's user agent.
     headers = None
     if uri == EP_GRAPHQL:
@@ -556,219 +559,3 @@ async def delete_group(login, group_id: str) -> bool:
     if not group_id:
         raise AlexaClientError("delete_group requires a group_id")
     return await _request(login, "delete", f"{EP_GROUP}/{group_id}")
-
-
-# ── Alexa lists ─────────────────────────────────────────────────────────────────────────
-# Shopping list / to-do list / custom lists, over the same borrowed session. These endpoints
-# are the ones the Alexa web app uses; Amazon has been retiring list access, so everything
-# here degrades to "no lists" rather than raising into HA's setup.
-
-
-@dataclass
-class AlexaList:
-    """One Alexa list (Shopping List, To-do List, or a custom one)."""
-
-    list_id: str
-    name: str
-    type: str | None
-
-
-@dataclass
-class AlexaListItem:
-    """One item on an Alexa list. `raw` is kept so updates can echo Amazon's own
-    document back with its version — the API rejects writes that drop it."""
-
-    item_id: str
-    value: str
-    completed: bool
-    raw: dict
-
-
-def _first_list(payload: Any, *keys: str) -> list:
-    """Pull the first list-shaped value out of a payload, by key then by scan.
-
-    Amazon returns `{"lists": [...]}` on some accounts and `{"list": [...]}` or a bare
-    array on others; guessing one shape is how this breaks silently.
-    """
-    if isinstance(payload, list):
-        return payload
-    if isinstance(payload, dict):
-        for key in keys:
-            value = payload.get(key)
-            if isinstance(value, list):
-                return value
-        for value in payload.values():
-            if isinstance(value, list) and (not value or isinstance(value[0], dict)):
-                return value
-    return []
-
-
-async def get_lists(login) -> list[AlexaList]:
-    """Every named list on the account. Empty if Amazon no longer serves them."""
-    payload = await _request(login, "get", EP_LISTS)
-    out: list[AlexaList] = []
-    for raw in _first_list(payload, "lists", "list"):
-        if not isinstance(raw, dict):
-            continue
-        list_id = raw.get("itemId") or raw.get("listId") or raw.get("id")
-        name = raw.get("name") or raw.get("title")
-        if not list_id or not name:
-            continue
-        out.append(AlexaList(list_id=str(list_id), name=str(name), type=raw.get("type")))
-    return out
-
-
-async def get_list_items(login, list_id: str) -> list[AlexaListItem]:
-    """Items on one list, completed ones included (the todo entity shows both)."""
-    payload = await _request(login, "get", EP_LIST_ITEMS.format(list_id=list_id))
-    out: list[AlexaListItem] = []
-    for raw in _first_list(payload, "list", "items", "values"):
-        if not isinstance(raw, dict):
-            continue
-        item_id = raw.get("id") or raw.get("itemId")
-        value = raw.get("value") or raw.get("text") or raw.get("name")
-        if not item_id or value is None:
-            continue
-        out.append(
-            AlexaListItem(
-                item_id=str(item_id),
-                value=str(value),
-                completed=bool(raw.get("completed")),
-                raw=raw,
-            )
-        )
-    return out
-
-
-async def add_list_item(login, list_id: str, value: str) -> Any:
-    """Add an item. Alexa's own app posts {value, status} to /item."""
-    return await _request(
-        login,
-        "post",
-        EP_LIST_ITEM.format(list_id=list_id),
-        data={"value": value, "status": "active"},
-    )
-
-
-async def update_list_item(login, item: AlexaListItem, *, value: str | None = None,
-                           completed: bool | None = None) -> Any:
-    """Tick off or rename an item.
-
-    Sends Amazon's own item document back with the fields changed — the API uses the
-    `version` field for optimistic concurrency and 400s if it is missing or stale.
-    """
-    body = dict(item.raw)
-    if value is not None:
-        body["value"] = value
-    if completed is not None:
-        body["completed"] = completed
-    return await _request(
-        login,
-        "put",
-        EP_LIST_ITEM_ID.format(list_id=body.get("listId", ""), item_id=item.item_id),
-        data=body,
-    )
-
-
-async def delete_list_item(login, list_id: str, item: AlexaListItem) -> Any:
-    """Remove an item from the list."""
-    return await _request(
-        login,
-        "delete",
-        EP_LIST_ITEM_ID.format(list_id=list_id, item_id=item.item_id),
-        data=item.raw,
-    )
-
-
-async def raw_probe(login, uri: str) -> dict:
-    """Lowest-level GET: report HTTP status, content type and a body prefix.
-
-    `raw_get` goes through `_request`, which turns a non-2xx into an exception and a
-    non-JSON body into `{}` — both of which hide WHY an endpoint is failing. When an
-    endpoint answers `{}` you need to know whether that is really an empty JSON object or
-    an HTML sign-in page, and only the raw response says.
-    """
-    out: dict[str, Any] = {"endpoint": uri}
-    if isinstance(login, AlexaDevicesSession):
-        try:
-            out["response"] = await _alexa_devices_request(login, "get", uri)
-            out["status"] = 200
-        except AlexaClientError as err:
-            out["exception"] = str(err)[:200]
-        return out
-    from alexapy import AlexaAPI  # noqa: PLC0415
-
-    try:
-        resp = await AlexaAPI._static_request("get", login, uri)  # noqa: SLF001
-    except Exception as err:  # noqa: BLE001
-        out["exception"] = str(err)[:200]
-        return out
-    if resp is None:
-        out["response"] = None  # alexapy itself swallowed it (redirect / auth failure)
-        return out
-    out["status"] = getattr(resp, "status", None)
-    try:
-        out["content_type"] = resp.headers.get("Content-Type")
-    except Exception:  # noqa: BLE001
-        pass
-    try:
-        text = await resp.text()
-        out["length"] = len(text)
-        stripped = text.lstrip()[:15].lower()
-        out["looks_html"] = stripped.startswith(("<!doctype", "<html"))
-        # returned to the caller only, never logged: this can contain list contents
-        out["body_prefix"] = text[:220]
-    except Exception as err:  # noqa: BLE001
-        out["text_error"] = str(err)[:120]
-    return out
-
-
-async def probe_lists_raw(login) -> list[dict]:
-    """Try every list endpoint shape anyone has used, with full HTTP detail."""
-    candidates = [
-        "/api/namedLists",
-        "/api/namedLists?_=1700000000000",
-        "/api/v2/namedLists",
-        "/api/v2/namedLists?listIds=",
-        "/api/v2/namedLists/list",
-        "/api/lists",
-        "/api/v1/lists",
-        "/api/todos?type=SHOPPING_ITEM&size=100",
-        "/api/cardsForDevice?deviceType=ALL",
-    ]
-    return [await raw_probe(login, uri) for uri in candidates]
-
-
-async def probe_lists(login) -> list[dict]:
-    """Read-only: try the candidate list endpoints and report what still answers.
-
-    Run this BEFORE trusting the todo platform — Amazon has been closing list access, and
-    a dead endpoint should be visible as a diagnostic rather than as empty cards.
-    """
-    candidates = [
-        EP_LISTS,
-        "/api/v2/namedLists",
-        "/api/namedLists?listIds=",
-        "/api/todos?type=SHOPPING_ITEM&size=100",
-        "/api/todos?type=TASK&size=100",
-    ]
-    out: list[dict] = []
-    for uri in candidates:
-        payload, err = await raw_get(login, uri)
-        entry: dict[str, Any] = {"endpoint": uri, "error": err}
-        if err is None:
-            rows = _first_list(payload, "lists", "list", "items", "values")
-            entry["type"] = type(payload).__name__
-            entry["top_level_keys"] = (
-                list(payload.keys())[:12] if isinstance(payload, dict) else None
-            )
-            entry["row_count"] = len(rows)
-            # names only — never dump the contents of someone's shopping list into a log
-            entry["row_keys"] = sorted(rows[0].keys())[:20] if rows and isinstance(rows[0], dict) else None
-            entry["list_names"] = [
-                r.get("name") or r.get("title")
-                for r in rows[:12]
-                if isinstance(r, dict) and (r.get("name") or r.get("title"))
-            ]
-        out.append(entry)
-    return out

@@ -106,17 +106,3 @@ CONTROLLABLE_DOMAINS = {
     "vacuum",
     "camera",
 }
-
-# ── Alexa lists (shopping list / to-do list) ────────────────────────────────────────────
-# The same private API, different endpoints. Amazon has been retiring these, so the client
-# probes several shapes and the todo platform simply creates no entities if none answer.
-EP_LISTS = "/api/namedLists"                                   # GET every list
-EP_LIST_ITEMS = "/api/namedLists/{list_id}/items"              # GET items in one list
-EP_LIST_ITEM = "/api/namedLists/{list_id}/item"                # POST add an item
-EP_LIST_ITEM_ID = "/api/namedLists/{list_id}/item/{item_id}"   # PUT tick off · DELETE remove
-
-SERVICE_PROBE_LISTS = "probe_lists"
-
-# Lists change when someone talks to an Echo, so poll rather than wait for a page load.
-# Two minutes keeps "Alexa, add milk" feeling live without hammering an unofficial API.
-LIST_SCAN_INTERVAL_SECONDS = 120
