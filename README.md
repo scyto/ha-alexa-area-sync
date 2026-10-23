@@ -244,6 +244,7 @@ first.
 - **v0.15.1:** no "Unable to remove unknown job listener" error when the integration is reloaded or removed with auto-sync on.
 - **v0.16.0:** lists exposed devices Alexa doesn't have, and asks HA Cloud to resend them if they stay missing.
 - **v0.17.0:** safer removals (held until confirmed on a later sync, capped per run, never on adoption); a sync stops if HA's exposure settings can't be read; the managed-groups record is saved even after an error; the Alexa lists / to-do feature is removed; diagnostics redact Echo serials; actions register once at startup; the README is exact about what writes.
+- **v0.18.0:** setup says what's missing: no Alexa login integration, one that isn't signed in (with its state), a session that can't reach Alexa, or HA Cloud / exposure not set up.
 
 ## Credits & licence
 

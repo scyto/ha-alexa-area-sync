@@ -3,15 +3,19 @@
     "step": {
       "user": {
         "title": "Alexa Area Sync",
-        "description": "Pick the Alexa account whose Alexa groups should mirror your Home Assistant areas. It uses the signed-in session of HA's Alexa Devices integration if that account is set up there, otherwise Alexa Media Player's.",
+        "description": "Pick the Alexa account whose Alexa groups should mirror your Home Assistant areas. It uses the signed-in session of Home Assistant's Alexa Devices integration if that account is set up there, otherwise Alexa Media Player's.{cloud_note}",
         "data": {
           "email": "Alexa account"
         }
       }
     },
     "abort": {
-      "no_alexa_media": "No signed-in Alexa account found. Set up Home Assistant's Alexa Devices integration (or Alexa Media Player) first; this integration reuses its session.",
-      "already_configured": "This Alexa account is already set up."
+      "already_configured": "This Alexa account is already set up.",
+      "no_login_integration": "Alexa Area Sync borrows the Amazon sign-in of another integration, and neither is set up. Set up Home Assistant's **Alexa Devices** integration (Settings > Devices & services > Add integration > Alexa Devices), or Alexa Media Player from HACS, sign in to your Amazon account, then add Alexa Area Sync again.",
+      "login_not_ready": "No signed-in Alexa account is ready yet. Current state: {states}. Fix or re-authenticate that integration (or wait for it to finish starting), then add Alexa Area Sync again."
+    },
+    "error": {
+      "cannot_connect": "Couldn't reach Alexa with that account's session: {error}"
     }
   },
   "options": {
