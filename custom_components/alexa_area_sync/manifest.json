@@ -6,8 +6,10 @@
   ],
   "config_flow": true,
   "after_dependencies": [
+    "alexa",
     "alexa_devices",
     "alexa_media",
+    "cloud",
     "logbook"
   ],
   "documentation": "https://github.com/scyto/ha-alexa-room-sync",
