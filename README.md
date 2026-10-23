@@ -38,7 +38,7 @@ gap through the **unofficial Alexa API**, using the private endpoints the Alexa 
 
 | Step | With My Home Assistant | By hand |
 |---|---|---|
-| 1. Get it from HACS | [![Open this repository in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=scyto&repository=ha-alexa-room-sync&category=integration) | HACS > ⋮ > **Custom repositories**, add `https://github.com/scyto/ha-alexa-room-sync` as an **Integration** |
+| 1. Get it from HACS | [![Open this repository in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=scyto&repository=ha-alexa-area-sync&category=integration) | HACS > ⋮ > **Custom repositories**, add `https://github.com/scyto/ha-alexa-area-sync` as an **Integration** |
 | 2. Download | **Download** in HACS, then restart HA | Same |
 | 3. Set it up | [![Add Alexa Area Sync to Home Assistant](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=alexa_area_sync) | **Settings > Devices & services > Add integration > Alexa Area Sync** |
 
