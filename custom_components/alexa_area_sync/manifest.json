@@ -1,10 +1,6 @@
 {
   "domain": "alexa_area_sync",
   "name": "Alexa Area Sync",
-  "codeowners": [
-    "@scyto"
-  ],
-  "config_flow": true,
   "after_dependencies": [
     "alexa",
     "alexa_devices",
@@ -12,6 +8,10 @@
     "cloud",
     "logbook"
   ],
+  "codeowners": [
+    "@scyto"
+  ],
+  "config_flow": true,
   "documentation": "https://github.com/scyto/ha-alexa-room-sync",
   "integration_type": "service",
   "iot_class": "cloud_polling",
