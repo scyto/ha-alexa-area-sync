@@ -23,6 +23,7 @@ from homeassistant.helpers import config_validation as cv
 from . import alexa_client as ac
 from . import diag as diag_mod
 from . import runner
+from . import sync as sync_mod
 from .const import (
     ATTR_AREA_ID,
     CONF_CONFIRMED,
@@ -96,12 +97,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         entry = _target_entry(hass, call)
         login = _login_for_entry(hass, entry)
         groups = await ac.get_groups(login)
+        # Names are a nicety: if the device list fails, still list members by id.
+        try:
+            names = {a.appliance_id: a.friendly_name
+                     for a in await ac.get_appliances(login) if a.friendly_name}
+        except ac.AlexaClientError as err:
+            _LOGGER.warning("list_groups: device names unavailable (%s)", err)
+            names = {}
         return {
             "groups": [
                 {
                     "name": g.name,
                     "group_id": g.group_id,
                     "device_count": len(g.appliance_ids),
+                    "devices": [sync_mod.device_label(a, names) for a in g.appliance_ids],
                 }
                 for g in groups
             ]
