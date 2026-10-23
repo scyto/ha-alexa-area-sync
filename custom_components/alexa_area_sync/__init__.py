@@ -1,4 +1,4 @@
-"""Alexa Room Sync — mirror Home Assistant areas into Alexa rooms/groups.
+"""Alexa Area Sync — mirror Home Assistant areas into Alexa rooms/groups.
 
 Creates one Alexa group per HA area and assigns each Alexa-exposed HA device to the
 room matching its HA area, using the *unofficial* Alexa API (the private endpoints
@@ -63,11 +63,11 @@ def _target_entry(hass: HomeAssistant, call: ServiceCall) -> ConfigEntry:
         for e in entries:
             if e.entry_id == wanted:
                 return e
-        raise HomeAssistantError(f"No loaded Alexa Room Sync entry '{wanted}'.")
+        raise HomeAssistantError(f"No loaded Alexa Area Sync entry '{wanted}'.")
     if len(entries) == 1:
         return entries[0]
     if not entries:
-        raise HomeAssistantError("Alexa Room Sync isn't loaded.")
+        raise HomeAssistantError("Alexa Area Sync isn't loaded.")
     raise HomeAssistantError(
         "More than one Alexa account is set up; pass config_entry_id to choose one."
     )
@@ -82,10 +82,11 @@ def _login_for_entry(hass: HomeAssistant, entry: ConfigEntry):
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up Alexa Room Sync from a config entry and register services."""
+    """Set up Alexa Area Sync from a config entry and register services."""
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = entry
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+    await runner.import_legacy_rooms(hass, entry)
     if entry.options.get(CONF_AUTO_SYNC, DEFAULT_AUTO_SYNC):
         entry.async_on_unload(autosync.async_start(hass, entry))
 
@@ -181,7 +182,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             apply = False
         if not apply:
             _LOGGER.warning(
-                "Alexa Room Sync is in DRY-RUN; nothing written. "
+                "Alexa Area Sync is in DRY-RUN; nothing written. "
                 "Set apply:true (with options confirmation) to write."
             )
         return await runner.run_sync(hass, entry, only_area_id=area_id, apply=apply)

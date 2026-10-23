@@ -10,7 +10,7 @@ preview:
       required: false
       selector:
         config_entry:
-          integration: alexa_room_sync
+          integration: alexa_area_sync
     area_id:
       name: Area
       description: Limit the preview to a single HA area (optional).
@@ -35,7 +35,7 @@ sync_area:
       required: false
       selector:
         config_entry:
-          integration: alexa_room_sync
+          integration: alexa_area_sync
     area_id:
       name: Area
       description: The HA area to sync.
@@ -67,7 +67,7 @@ sync:
       required: false
       selector:
         config_entry:
-          integration: alexa_room_sync
+          integration: alexa_area_sync
     apply:
       name: Apply (write to Alexa)
       description: If true, actually make the changes (requires the options confirmation).
@@ -118,7 +118,7 @@ remove_managed_rooms:
       required: false
       selector:
         config_entry:
-          integration: alexa_room_sync
+          integration: alexa_area_sync
     confirm:
       name: Confirm
       description: Must be true.

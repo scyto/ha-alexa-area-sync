@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Alexa Room Sync",
+        "title": "Alexa Area Sync",
         "description": "Pick the Alexa account whose Alexa groups should mirror your Home Assistant areas. It uses the signed-in session of HA's Alexa Devices integration if that account is set up there, otherwise Alexa Media Player's.",
         "data": {
           "email": "Alexa account"
@@ -17,14 +17,14 @@
   "options": {
     "step": {
       "init": {
-        "title": "Alexa Room Sync",
+        "title": "Alexa Area Sync",
         "menu_options": {
           "settings": "Settings",
           "remove_rooms": "Remove the Alexa groups it manages"
         }
       },
       "settings": {
-        "title": "Alexa Room Sync settings",
+        "title": "Alexa Area Sync settings",
         "description": "Each Home Assistant area gets one Alexa group. Nothing is written to Alexa until you turn dry-run off and tick the confirmation.",
         "data": {
           "dry_run": "Dry-run (never write to Alexa)",

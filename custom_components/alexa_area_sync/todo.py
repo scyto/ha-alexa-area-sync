@@ -10,7 +10,7 @@ the sidebar removes it from what the Echo reads back.
 ⚠️ These endpoints are the Alexa app's private ones and Amazon has been retiring list
 access. If they don't answer, this platform logs once and creates NO entities — an empty
 integration is a better failure than a wall of unavailable cards. Run the
-`alexa_room_sync.probe_lists` service to see what the account still serves.
+`alexa_area_sync.probe_lists` service to see what the account still serves.
 """
 
 from __future__ import annotations
@@ -50,7 +50,7 @@ async def async_setup_entry(
             logged.add(entry.entry_id)
             _LOGGER.info(
                 "Alexa lists unavailable (%s) — no to-do entities created. "
-                "Call alexa_room_sync.probe_lists to see what the account still serves.",
+                "Call alexa_area_sync.probe_lists to see what the account still serves.",
                 err,
             )
         return
@@ -58,7 +58,7 @@ async def async_setup_entry(
     if not lists:
         _LOGGER.warning(
             "Alexa returned no named lists — no to-do entities created. Amazon may have "
-            "retired list access for this account; try alexa_room_sync.probe_lists."
+            "retired list access for this account; try alexa_area_sync.probe_lists."
         )
         return
 

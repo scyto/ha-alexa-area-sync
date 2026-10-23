@@ -43,7 +43,7 @@ class AreaToSyncSelect(SelectEntity, RestoreEntity):
         self._attr_unique_id = f"{entry.entry_id}_area_to_sync"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
-            name="Alexa Room Sync",
+            name="Alexa Area Sync",
             entry_type=DeviceEntryType.SERVICE,
         )
         self._attr_options = []
