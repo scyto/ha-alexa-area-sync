@@ -8,9 +8,6 @@
     "cloud",
     "logbook"
   ],
-  "categories": [
-    "ai_voice.voice_assistants"
-  ],
   "codeowners": [
     "@scyto"
   ],
