@@ -5,9 +5,10 @@ HA area, holding every Alexa-exposed HA device in that area, so "Alexa, turn off
 lights" matches how HA is organised. Groups are created, updated when an area's devices change or
 the area is renamed, and removed when you skip or delete the area.
 
-> **This is a fork** of [neilellis/ha-alexa-room-sync](https://github.com/neilellis/ha-alexa-room-sync).
-> It fixes device matching (the original's device list came back empty), the `sync` services,
-> and adds the full group lifecycle, buttons and an area picker. See [Changes in this fork](#changes-in-this-fork).
+> Inspired by [neilellis/ha-alexa-room-sync](https://github.com/neilellis/ha-alexa-room-sync), which
+> this started as a fork of. The development history (pull requests #1–#23 and their reviews) is in
+> the archived [scyto/ha-alexa-room-sync-history](https://github.com/scyto/ha-alexa-room-sync-history).
+> See the [Changelog](#changelog).
 
 Nabu Casa / HA Cloud exposes your devices to Alexa but can't create Alexa groups. This fills that
 gap through the **unofficial Alexa API**, using the private endpoints the Alexa app and
@@ -18,7 +19,7 @@ gap through the **unofficial Alexa API**, using the private endpoints the Alexa 
 
 ## Requirements
 
-- Home Assistant. This fork is tested on 2026.10.
+- Home Assistant. Tested on 2026.10.
 - A signed-in Alexa account in either:
   - **Alexa Devices**, Home Assistant's built-in integration (recommended: its login is a normal
     setup screen with a one-time code), or
@@ -184,7 +185,7 @@ first.
   where a retry reuses the first attempt's login proxy (see
   [alexa_media_player#3559](https://github.com/alandtse/alexa_media_player/issues/3559)).
 
-## Changes in this fork
+## Changelog
 
 - **v0.4.0:** devices are listed via GraphQL, matched by HA's `domain#object_id` ids and by alias.
   The original's `/api/phoenix` lookup returns nothing on current accounts.
@@ -214,8 +215,11 @@ first.
 
 ## Credits & licence
 
-MIT. Original integration by [neilellis](https://github.com/neilellis/ha-alexa-room-sync). Relies
-on [alexa_media_player](https://github.com/alandtse/alexa_media_player) /
-[alexapy](https://gitlab.com/keatontaylor/alexapy) (Apache-2.0) for authentication. Endpoint
+MIT. Inspired by and originally forked from
+[neilellis/ha-alexa-room-sync](https://github.com/neilellis/ha-alexa-room-sync). Relies on Home
+Assistant's [Alexa Devices](https://www.home-assistant.io/integrations/alexa_devices) integration /
+[aioamazondevices](https://github.com/chemelli74/aioamazondevices) (Apache-2.0), or
+[alexa_media_player](https://github.com/alandtse/alexa_media_player) /
+[alexapy](https://gitlab.com/keatontaylor/alexapy) (Apache-2.0), for authentication. Endpoint
 shapes come from [alexa-remote](https://github.com/Apollon77/alexa-remote) (MIT) and community
 reverse-engineering. Not affiliated with or endorsed by Amazon.
