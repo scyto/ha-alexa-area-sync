@@ -77,18 +77,28 @@ def async_start(hass: HomeAssistant, entry: ConfigEntry) -> CALLBACK_TYPE:
     unsubs.append(
         async_track_time_interval(hass, _run, timedelta(hours=AUTO_SYNC_INTERVAL_HOURS))
     )
+    # A one-time listener removes itself when it fires; cancelling it again
+    # afterwards makes HA log "Unable to remove unknown job listener".
+    started: list[CALLBACK_TYPE] = []
+
+    @callback
+    def _on_started(event: Event) -> None:
+        started.clear()
+        _schedule(event)
+
     if hass.is_running:
         _schedule()
     else:
-        unsubs.append(
-            hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _schedule)
+        started.append(
+            hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _on_started)
         )
 
     @callback
     def _stop() -> None:
-        for cancel in pending + unsubs:
+        for cancel in pending + unsubs + started:
             cancel()
         pending.clear()
         unsubs.clear()
+        started.clear()
 
     return _stop
