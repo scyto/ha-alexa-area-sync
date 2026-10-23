@@ -2,7 +2,7 @@
   "domain": "alexa_area_sync",
   "name": "Alexa Area Sync",
   "codeowners": [
-    "@neilellis"
+    "@scyto"
   ],
   "config_flow": true,
   "after_dependencies": [
