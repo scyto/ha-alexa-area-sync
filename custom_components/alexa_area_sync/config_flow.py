@@ -27,6 +27,7 @@ from .const import (
     CONF_EXCLUDED_AREAS,
     CONF_FLOOR_GROUPS,
     CONF_FLOOR_LIGHTS_ONLY,
+    CONF_RESEND_MISSING,
     CONF_INCLUDE_CHILD_LOCKS,
     CONF_INCLUDE_ECHOS,
     CONF_INCLUDE_CLIMATE,
@@ -35,6 +36,7 @@ from .const import (
     DEFAULT_DRY_RUN,
     DEFAULT_FLOOR_GROUPS,
     DEFAULT_FLOOR_LIGHTS_ONLY,
+    DEFAULT_RESEND_MISSING,
     DEFAULT_INCLUDE_CHILD_LOCKS,
     DEFAULT_INCLUDE_ECHOS,
     DEFAULT_INCLUDE_CLIMATE,
@@ -163,6 +165,10 @@ class AlexaAreaSyncOptionsFlow(OptionsFlow):
                 vol.Optional(
                     CONF_FLOOR_LIGHTS_ONLY,
                     default=opts.get(CONF_FLOOR_LIGHTS_ONLY, DEFAULT_FLOOR_LIGHTS_ONLY),
+                ): bool,
+                vol.Optional(
+                    CONF_RESEND_MISSING,
+                    default=opts.get(CONF_RESEND_MISSING, DEFAULT_RESEND_MISSING),
                 ): bool,
                 vol.Optional(
                     CONF_AUTO_SYNC,

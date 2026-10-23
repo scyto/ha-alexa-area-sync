@@ -74,6 +74,9 @@ class SyncPlan:
     # Echo speaker applianceId -> its serial(s), upper case. Alexa can list an Echo in a
     # group by serial ({"dsn": ...}) instead of by this id.
     echo_serials: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    # Exposed, area-assigned entities Alexa doesn't list, whatever the group filters
+    # (skipped areas, domains kept out of groups): entity_id -> name.
+    not_in_alexa: dict[str, str] = field(default_factory=dict)
 
     def summary_lines(self) -> list[str]:
         lines = [
@@ -286,6 +289,21 @@ def _add_echos(hass, options, appliances, rooms, ha_appliance_ids,
     _MATCHED_ECHO_AREAS[email] = matched_areas
 
 
+def _alexa_can_have(hass: HomeAssistant, entity_id: str) -> bool:
+    """Whether HA Cloud can send this entity to Alexa at all, so one it can't (a
+    sensor class Alexa has no model for) isn't reported as missing forever."""
+    try:
+        from homeassistant.components.cloud.alexa_config import (  # noqa: PLC0415
+            entity_supported,
+        )
+    except ImportError:
+        return entity_id.split(".", 1)[0] in CONTROLLABLE_DOMAINS
+    try:
+        return bool(entity_supported(hass, entity_id))
+    except Exception:  # noqa: BLE001 - private helper; fall back to our own list
+        return entity_id.split(".", 1)[0] in CONTROLLABLE_DOMAINS
+
+
 def _floor_rooms(hass: HomeAssistant, options: dict,
                  area_rooms: list[PlannedRoom]) -> list[PlannedRoom]:
     """One extra Alexa group per HA floor, holding the HA devices of that floor's
@@ -435,6 +453,7 @@ async def build_plan(
     existing_names = [g.name for g in existing]
 
     rooms: dict[str, PlannedRoom] = {}
+    not_in_alexa: dict[str, str] = {}
     ha_appliance_ids: set[str] = set(by_entity.values())
     excluded_areas = set(options.get(CONF_EXCLUDED_AREAS) or [])
     total_exposed = 0
@@ -461,6 +480,8 @@ async def build_plan(
         )
         if name_match:
             ha_appliance_ids.add(name_match)
+        elif _alexa_can_have(hass, entity_id):
+            not_in_alexa[entity_id] = friendly
 
         if only_area_id and area_id != only_area_id:
             continue
@@ -505,6 +526,7 @@ async def build_plan(
         total_in_area=total_in_area,
         groups=existing,
         ha_appliance_ids=ha_appliance_ids,
+        not_in_alexa=not_in_alexa,
         names={
             **{a.appliance_id: a.friendly_name for a in appliances if a.friendly_name},
             **{f"dsn:{serial.upper()}": a.friendly_name
