@@ -10,8 +10,7 @@ the area is renamed, and removed when you skip or delete the area.
 > and adds the full group lifecycle, buttons and an area picker. See [Changes in this fork](#changes-in-this-fork).
 
 Nabu Casa / HA Cloud exposes your devices to Alexa but can't create Alexa groups. This fills that
-gap through the **unofficial Alexa API**, using the private endpoints the Alexa app and
-[Alexa Media Player](https://github.com/alandtse/alexa_media_player) use.
+gap through the **unofficial Alexa API**, using the private endpoints the Alexa app uses.
 
 > ⚠️ **This uses an undocumented Amazon API.** Amazon can change it without notice. Keep dry-run on
 > until you've looked at a preview, and test one area first.
@@ -19,8 +18,8 @@ gap through the **unofficial Alexa API**, using the private endpoints the Alexa 
 ## Requirements
 
 - Home Assistant. This fork is tested on 2026.10.
-- **Alexa Media Player**, installed and logged in. This integration borrows its Amazon session and
-  its `alexapy` library, and never asks for your password itself.
+- **Alexa Devices**, Home Assistant's built-in integration, set up and signed in to your Amazon
+  account. This integration borrows that session and never asks for your password itself.
 - Your HA devices **exposed to Alexa through HA Cloud** (Settings > Voice assistants > Expose) and
   discovered in the Alexa app.
 
@@ -50,7 +49,7 @@ Everything is read-only until you turn writes on.
 
 So that "turn on the lights" works without saying the area name, each Echo needs to be in its
 area's group. Either turn on **Put Echos in their area's Alexa group** (it uses the area each Echo
-has in Alexa Media Player), or add them by hand in the Alexa app. Echos you add by hand are kept.
+has in Alexa Devices), or add them by hand in the Alexa app. Echos you add by hand are kept.
 
 ### Device page
 
@@ -106,9 +105,9 @@ a group in Alexa before a sync if you want it left alone.
 - **Alexa group name prefix**: for example `HA `, to tell synced groups apart.
 - **Include climate entities** (on by default): thermostats go in their area's group.
 - **Include child-lock switches** (off by default).
-- **Put Echos in their area's Alexa group** (off by default): each Alexa Media Player Echo that has
-  an HA area joins that area's group, matched by serial number. Phone apps and speaker groups are
-  skipped. Echos placed this way are managed like HA devices: moved when you change their area, and
+- **Put Echos in their area's Alexa group** (off by default): each Echo that has an HA area joins
+  that area's group, matched by serial number. The areas are the ones each Echo's device has
+  in Alexa Devices. Phone apps and speaker groups are skipped. Echos placed this way are managed like HA devices: moved when you change their area, and
   removed by *Remove the Alexa groups it manages*.
 - **Also make one Alexa group per Home Assistant floor** (off by default): each HA floor
   gets a group holding the HA devices of its synced areas, so "Alexa, turn off the ground
@@ -138,8 +137,9 @@ For scripts and automations. With more than one Alexa account set up, pass `conf
 
 ## How it works
 
-- **Login:** it reuses Alexa Media Player's logged-in `AlexaLogin` and alexapy's request helper,
-  so no credentials live here.
+- **Login:** it reuses an already signed-in session, so no credentials live here: the HTTP
+  wrapper of Alexa Devices' `aioamazondevices` API. That wrapper is private to Alexa Devices, so a
+  Home Assistant update that changes it can break this until it's adapted.
 - **Devices:** it lists Alexa's smart-home devices with the Alexa app's GraphQL query
   (`POST /nexus/v1/graphql`), falling back to `GET /api/phoenix`. It matches each exposed HA entity
   by the entity_id that HA Cloud embeds in the Alexa device id (`…_light#kitchen_cans`). Otherwise
@@ -164,10 +164,6 @@ first.
 - Devices with no HA area can't be placed. Give them an area first.
 - Alexa lists are also offered as HA to-do entities when Amazon still serves them. On many accounts
   it doesn't, and the integration then logs a warning and creates none.
-- **Alexa Media Player login:** if the AMP login fails with "failed to login", restart HA and
-  finish the AMP login in the **first** attempt after the restart. This works around an AMP bug
-  where a retry reuses the first attempt's login proxy (see
-  [alexa_media_player#3559](https://github.com/alandtse/alexa_media_player/issues/3559)).
 
 ## Changes in this fork
 
@@ -192,11 +188,15 @@ first.
 - **v0.11.1:** Echos: only the Echo speaker device is added to a group (a tablet's AlexaBridge endpoint made Amazon reject the update).
 - **v0.12.0:** Activity and *Last result* name the devices each run added, removed or deleted, not just counts; `list_groups` lists each group's devices.
 - **v0.13.0:** optional floor groups and auto-sync; Add to Home Assistant buttons in the README.
+- **v0.14.0:** uses Home Assistant's built-in Alexa Devices integration for the Amazon session and Echo areas, replacing Alexa Media Player. After updating, set up Alexa Devices with the same Amazon account.
 
 ## Credits & licence
 
 MIT. Original integration by [neilellis](https://github.com/neilellis/ha-alexa-room-sync). Relies
-on [alexa_media_player](https://github.com/alandtse/alexa_media_player) /
-[alexapy](https://gitlab.com/keatontaylor/alexapy) (Apache-2.0) for authentication. Endpoint
+on Home Assistant's [Alexa Devices](https://www.home-assistant.io/integrations/alexa_devices)
+integration and [aioamazondevices](https://github.com/chemelli74/aioamazondevices) (Apache-2.0)
+for authentication; earlier versions used
+[alexa_media_player](https://github.com/alandtse/alexa_media_player) /
+[alexapy](https://gitlab.com/keatontaylor/alexapy). Endpoint
 shapes come from [alexa-remote](https://github.com/Apollon77/alexa-remote) (MIT) and community
 reverse-engineering. Not affiliated with or endorsed by Amazon.

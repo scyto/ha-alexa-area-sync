@@ -28,7 +28,7 @@ from .const import (
     CONTROLLABLE_DOMAINS,
     DEFAULT_INCLUDE_CHILD_LOCKS,
     DEFAULT_INCLUDE_ECHOS,
-    ALEXA_MEDIA_PLATFORM,
+    ALEXA_DEVICES_DOMAIN,
     DEFAULT_INCLUDE_CLIMATE,
     DEFAULT_ROOM_PREFIX,
 )
@@ -130,68 +130,46 @@ def _is_echo_speaker(appliance) -> bool:
     )
 
 
-# AMP media_players that never have an Alexa smart-home device of their own.
-_NON_ECHO_MODELS = ("Speaker Group", "Alexa Mobile Voice")
-# Echo serials (upper case) that matched an Alexa device on the last plan, by account.
-_MATCHED_ECHO_AREAS: dict[str | None, set[str]] = {}
-
-
-def _amp_serial(identifier: str) -> str:
-    """The raw Echo serial from AMP's device identifier.
-
-    AMP's first account uses the serial as-is; later accounts use
-    slugify(f"{serial}_{email}"), lower-cased. Serials are alphanumeric, so the
-    part before the first "_" is the serial; compare case-insensitively.
-    """
-    return identifier.split("_", 1)[0].upper()
-
-
-def _amp_entry_ids(hass: HomeAssistant, email: str | None) -> set[str] | None:
-    """Config entry ids of the Alexa Media Player account for ``email`` (None = any)."""
-    if not email:
-        return None
-    ids = {
-        e.entry_id
-        for e in hass.config_entries.async_entries(ALEXA_MEDIA_PLATFORM)
-        if str(e.data.get("email", "")).lower() == email.lower()
-    }
-    return ids or None
-
-
-def _echo_serials_by_area(
-    hass: HomeAssistant, email: str | None = None
+def _alexa_devices_echos_by_area(
+    hass: HomeAssistant, entry_id: str
 ) -> dict[str, list[tuple[str, str]]]:
-    """area_id -> [(entity_id, SERIAL)] for one account's Alexa Media Player Echos.
+    """area_id -> [(entity_id, SERIAL)] for one core Alexa Devices account's Echos.
 
-    Uses the area you gave each Echo in HA. Phone apps and speaker groups are left
-    out: they have no Alexa smart-home device to put in a group.
+    Alexa Devices keys each Echo's HA device by its serial. The media player entity
+    names it in results; a device without one uses its device id.
     """
     ent_reg = er.async_get(hass)
     dev_reg = dr.async_get(hass)
-    account = _amp_entry_ids(hass, email)
     out: dict[str, list[tuple[str, str]]] = {}
-    for entry in ent_reg.entities.values():
-        if entry.platform != ALEXA_MEDIA_PLATFORM or entry.domain != "media_player":
+    for device in dr.async_entries_for_config_entry(dev_reg, entry_id):
+        if device.entry_type is dr.DeviceEntryType.SERVICE:
             continue
-        if account is not None and entry.config_entry_id not in account:
-            continue
-        if not entry.device_id:
-            continue
-        device = dev_reg.async_get(entry.device_id)
-        if device is None or str(device.model or "").startswith(_NON_ECHO_MODELS):
-            continue
-        ident = next(
-            (ident for dom, ident in device.identifiers if dom == ALEXA_MEDIA_PLATFORM),
+        serial = next(
+            (ident for dom, ident in device.identifiers if dom == ALEXA_DEVICES_DOMAIN),
             None,
         )
-        area_id = _area_for_entity(hass, ent_reg, dev_reg, entry.entity_id)
-        if ident and area_id:
-            out.setdefault(area_id, []).append((entry.entity_id, _amp_serial(ident)))
+        if not serial:
+            continue
+        entity_id = next(
+            (e.entity_id for e in er.async_entries_for_device(ent_reg, device.id)
+             if e.domain == "media_player"),
+            None,
+        )
+        # The media player's own area wins over its device's, as for any other entity.
+        area_id = (
+            _area_for_entity(hass, ent_reg, dev_reg, entity_id) if entity_id
+            else device.area_id
+        )
+        if area_id:
+            out.setdefault(area_id, []).append(
+                (entity_id or f"device:{device.id}", serial.upper())
+            )
     return out
 
 
 def _add_echos(hass, options, appliances, rooms, ha_appliance_ids,
-               only_area_id, excluded_areas, email=None) -> None:
+               only_area_id, excluded_areas, email=None,
+               alexa_devices_entry_id: str | None = None) -> None:
     """Put each Echo's Alexa device(s) in the group for the HA area it's in."""
     area_reg = ar.async_get(hass)
     by_serial: dict[str, list[str]] = {}
@@ -200,13 +178,17 @@ def _add_echos(hass, options, appliances, rooms, ha_appliance_ids,
         # share its serial (an "AlexaBridge_" endpoint for a tablet's Alexa, a
         # built-in sensor or a Zigbee/Matter child on the same driver) can be
         # refused by Amazon and fail the whole update. The speaker is the one that
-        # is voice-enabled, which is the test Alexa Media Player uses too.
+        # is voice-enabled.
         if not _is_echo_speaker(appliance):
             continue
         for serial in appliance.serials:
             by_serial.setdefault(serial.upper(), []).append(appliance.appliance_id)
     matched_areas: set[str] = set()
-    for area_id, echos in _echo_serials_by_area(hass, email).items():
+    echo_areas = (
+        _alexa_devices_echos_by_area(hass, alexa_devices_entry_id)
+        if alexa_devices_entry_id else {}
+    )
+    for area_id, echos in echo_areas.items():
         if any(by_serial.get(serial) for _, serial in echos):
             matched_areas.add(area_id)
         if only_area_id and area_id != only_area_id:
@@ -287,7 +269,10 @@ def syncable_area_ids(
         if _wanted_domain(entry.entity_id, friendly, options):
             areas.add(area_id)
     if options.get(CONF_INCLUDE_ECHOS, DEFAULT_INCLUDE_ECHOS):
-        echo_areas = set(_echo_serials_by_area(hass, email))
+        session = ac.get_alexa_devices_session(hass, email)
+        echo_areas = set(
+            _alexa_devices_echos_by_area(hass, session.entry_id) if session else {}
+        )
         if email in _MATCHED_ECHO_AREAS:
             # After a preview or sync, only areas whose Echo matched an Alexa device.
             echo_areas &= _MATCHED_ECHO_AREAS[email]
@@ -431,7 +416,8 @@ async def build_plan(
 
     if options.get(CONF_INCLUDE_ECHOS, DEFAULT_INCLUDE_ECHOS):
         _add_echos(hass, options, appliances, rooms, ha_appliance_ids,
-                   only_area_id, excluded_areas, email=getattr(login, "email", None))
+                   only_area_id, excluded_areas, email=getattr(login, "email", None),
+                   alexa_devices_entry_id=getattr(login, "entry_id", None))
 
     floor_rooms: list[PlannedRoom] = []
     if not only_area_id and options.get(CONF_FLOOR_GROUPS, DEFAULT_FLOOR_GROUPS):
