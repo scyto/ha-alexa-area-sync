@@ -143,6 +143,11 @@ a group in Alexa before a sync if you want it left alone.
 - **Floor groups: lights and light switches only** (on by default): floor groups hold only
   lights and switches, so "Alexa, turn off the ground floor" doesn't also turn off thermostats,
   purifiers or other devices. Turn it off to give floor groups everything their areas have.
+- **Ask HA Cloud to resend exposed devices that Alexa has lost** (on by default): every run lists
+  devices that are exposed and have an area in HA but that Alexa doesn't know about ("Not in Alexa
+  yet"). If one is still missing 10 minutes later, a sync asks HA Cloud to send it to Alexa again,
+  at most once an hour. This is the report HA Cloud's own *Sync entities* button sends; it never
+  turns exposure off, which would make Alexa delete the device.
 - **Sync automatically** (off by default): runs a whole-house sync a minute after you
   change areas, floors, devices or what's exposed to Alexa, and once an hour to catch
   devices Alexa discovers late. It only writes when dry-run is off and the confirmation is
@@ -228,6 +233,7 @@ first.
 - **v0.14.3:** floor groups hold only lights and light switches by default; the "Alexa lists unavailable" message is logged once at info level instead of a warning on every start.
 - **v0.15.0:** renamed to **Alexa Area Sync** (domain `alexa_area_sync`, was `alexa_room_sync`) so it can't clash with other integrations of the old name. See [Upgrading from Alexa Room Sync](#upgrading-from-alexa-room-sync).
 - **v0.15.1:** no "Unable to remove unknown job listener" error when the integration is reloaded or removed with auto-sync on.
+- **v0.16.0:** lists exposed devices Alexa doesn't have, and asks HA Cloud to resend them if they stay missing.
 
 ## Credits & licence
 

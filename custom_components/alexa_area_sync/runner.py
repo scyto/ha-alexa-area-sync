@@ -20,8 +20,15 @@ from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from . import alexa_client as ac
+from . import heal
 from . import sync as sync_mod
-from .const import CONF_EMAIL, DOMAIN, LEGACY_DOMAIN
+from .const import (
+    CONF_EMAIL,
+    CONF_RESEND_MISSING,
+    DEFAULT_RESEND_MISSING,
+    DOMAIN,
+    LEGACY_DOMAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -101,12 +108,33 @@ async def _run_sync(
         await store.async_save({"rooms": managed})
 
     response = _response(plan, actions, results, managed, dry_run=not apply)
+
+    # Exposed devices Alexa doesn't have. A sync (not a preview) asks HA Cloud to
+    # resend them once they've been missing past the grace period.
+    missing = heal.missing_in_alexa(plan) if not only_area_id else {}
+    resent: list[str] = []
+    resend_error = None
+    if apply and missing and entry.options.get(CONF_RESEND_MISSING, DEFAULT_RESEND_MISSING):
+        due = heal.due_for_resend(hass, entry, missing)
+        if due:
+            resend_error = await heal.resend_via_cloud(hass, entry, due)
+            resent = [missing[e] for e in due]
+    response["not_in_alexa"] = missing
+
     # SKIP ("no matched devices", e.g. Alexa hasn't discovered a new device yet)
-    # changes nothing either, so the hourly run stays quiet about it.
-    if auto and all(a.kind in (sync_mod.UNCHANGED, sync_mod.SKIP) for a in actions):
+    # changes nothing either, so the hourly run stays quiet about it unless it
+    # just asked HA Cloud to resend something.
+    if (auto and not resent
+            and all(a.kind in (sync_mod.UNCHANGED, sync_mod.SKIP) for a in actions)):
         return response
     details = _details(actions, results, scope=scope, applied=apply)
-    _publish(hass, entry, _short_summary(actions, applied=apply, scope=scope), details)
+    details["not_in_alexa"] = sorted(missing.values())
+    if resent:
+        details["resent_via_cloud"] = sorted(resent)
+        if resend_error:
+            details["resend_error"] = resend_error
+    _publish(hass, entry, _short_summary(actions, applied=apply, scope=scope,
+                                         missing=len(missing)), details)
     _log_to_activity(hass, entry, details)
     return response
 
@@ -234,7 +262,8 @@ def _scope(hass: HomeAssistant, only_area_id: str | None) -> str:
     return f"One area ({area.name if area else only_area_id})"
 
 
-def _short_summary(actions, *, applied: bool, scope: str = "Whole house") -> str:
+def _short_summary(actions, *, applied: bool, scope: str = "Whole house",
+                   missing: int = 0) -> str:
     counts: dict[str, int] = {}
     for a in actions:
         counts[a.kind] = counts.get(a.kind, 0) + 1
@@ -242,7 +271,8 @@ def _short_summary(actions, *, applied: bool, scope: str = "Whole house") -> str
              (sync_mod.DELETE, "delete"), (sync_mod.UNCHANGED, "unchanged")]
     bits = [f"{counts[k]} {label}" for k, label in order if counts.get(k)]
     head = f"{scope} – {'synced' if applied else 'preview'}"
-    return f"{head}: {', '.join(bits) or 'nothing to do'}. See Activity."
+    tail = f"; {missing} not in Alexa yet" if missing else ""
+    return f"{head}: {', '.join(bits) or 'nothing to do'}{tail}. See Activity."
 
 
 def _details(actions, results, *, scope: str, applied: bool) -> dict[str, Any]:
@@ -287,6 +317,12 @@ def _log_to_activity(hass: HomeAssistant, entry: ConfigEntry, details: dict[str,
         body = f"all {len(groups)} group(s) already matched"
     else:
         body = "nothing to sync"
+    if details.get("not_in_alexa"):
+        body += f" | Not in Alexa yet: {', '.join(details['not_in_alexa'])}"
+    if details.get("resent_via_cloud"):
+        how = (f"couldn't ({details['resend_error']})" if details.get("resend_error")
+               else "asked HA Cloud to resend")
+        body += f" | {how}: {', '.join(details['resent_via_cloud'])}"
     entity_id = er.async_get(hass).async_get_entity_id(
         "sensor", DOMAIN, f"{entry.entry_id}_last_result"
     )

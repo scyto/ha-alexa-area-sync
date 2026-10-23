@@ -35,6 +35,7 @@
           "include_echos": "Put Echos in their area's Alexa group (uses each Echo's area in Alexa Devices, or in Alexa Media Player)",
           "floor_groups": "Also make one Alexa group per Home Assistant floor",
           "floor_lights_only": "Floor groups: lights and light switches only",
+          "resend_missing": "Ask HA Cloud to resend exposed devices that Alexa has lost",
           "auto_sync": "Sync automatically when areas, floors, devices or exposure change (needs dry-run off and the confirmation ticked)"
         },
         "sections": {

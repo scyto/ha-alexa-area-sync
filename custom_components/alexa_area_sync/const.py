@@ -56,6 +56,7 @@ CONF_EXCLUDED_AREAS = "excluded_areas"
 CONF_FLOOR_GROUPS = "floor_groups"
 CONF_AUTO_SYNC = "auto_sync"
 CONF_FLOOR_LIGHTS_ONLY = "floor_lights_only"
+CONF_RESEND_MISSING = "resend_missing"
 
 DEFAULT_DRY_RUN = True
 DEFAULT_ROOM_PREFIX = ""
@@ -66,6 +67,8 @@ DEFAULT_FLOOR_GROUPS = False
 # Floor groups hold lights and light switches only, so "turn off the ground floor"
 # doesn't also switch off thermostats, fans or speakers.
 DEFAULT_FLOOR_LIGHTS_ONLY = True
+# Ask HA Cloud to resend exposed devices Alexa has lost (see heal.py).
+DEFAULT_RESEND_MISSING = True
 FLOOR_LIGHT_DOMAINS = ("light", "switch")
 DEFAULT_AUTO_SYNC = False
 
